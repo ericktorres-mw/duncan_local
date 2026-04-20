@@ -1,0 +1,22 @@
+<restlet scriptid="customscript_mw_vs_code_ext_temp">
+  <description></description>
+  <isinactive>F</isinactive>
+  <name>VS Code Extension RESTlet</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>F</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/SDF_APP_2/vscodeExtensionRestletTemp.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_mw_vs_code_ext_test">
+      <allemployees>T</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>T</allroles>
+      <audslctrole>CUSTOMER_CENTER|EMPLOYEE_CENTER|NETSUITE_SUPPORT_CENTER__BASIC|NETSUITE_SUPPORT_CENTER|ONLINE_FORM_USER|PARTNER_CENTER|VENDOR_CENTER</audslctrole>
+      <isdeployed>T</isdeployed>
+      <loglevel>ERROR</loglevel>
+      <status>RELEASED</status>
+      <title>VS Code Extension RESTlet</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</restlet>

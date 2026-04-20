@@ -1,0 +1,202 @@
+<?xml version="1.0"?>
+<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+	<head>
+		<style type="text/css">
+			* {
+				font-size: 10pt;
+			}
+			table {
+				width: 100%;
+				font-family: sans-serif;
+			}
+
+			table thead th  {
+				vertical-align: middle;
+				padding: 5px 6px 3px;
+				background-color: #e3e3e3;
+				color: #333333;
+			}
+
+			table thead th p {
+				font-weight: bold;
+				font-size: 8pt !important;
+			}
+
+			td {
+				padding: 4px 6px;
+			}
+
+			.border.top {
+				border-top: 1px solid;
+			}
+			.border.right {
+				border-right: 1px solid;
+			}
+			.border.bottom {
+				border-bottom: 1px solid;
+			}
+			.border.left {
+				border-left: 1px solid;
+			}
+			.title {
+				font-size : 26; 
+				font-weight: bold;
+				font-style: bold !important;
+			}
+			
+			.headerCustomer{
+				font-size : 19; 
+				font-style : bold; 
+			}
+			
+			.headerProcessType{
+				font-size : 19;
+				font-size : bold; 
+			}
+			
+			.headerValue {
+				font-weight : bold; 
+			}
+			
+			.tblfooter
+			{
+				font-size: 7pt;
+			}
+			.headerMemo
+			{
+				font-style: bold;
+			}
+			
+			.taskName
+			{
+				font-size: 40pt;
+				
+			}
+
+			.qtyFont
+			{
+				font-size: 16pt !important;
+			}
+
+			.qtyFontVal
+			{
+				font-size: 14pt !important;
+			}
+
+			.tdItem
+			{
+				width: 50% !important;
+			}
+
+			.tdQty
+			{
+				width: 25% !important;
+			}
+
+			.titleOrder
+			{
+				font-weight: bold;
+				font-style: bold !important;
+			}
+
+			.infoFont
+			{
+				font-size: 14pt !important;
+			}
+
+			.infoValFont
+			{
+				font-size: 13pt !important;
+				font-weight: bold;
+				font-style: bold !important;
+			}
+
+			.infoValFont2
+			{
+				font-size: 17pt !important;
+				font-weight: bold;
+				font-style: bold !important;
+			}
+
+			.titleNotes{
+				font-size: 18pt !important;
+			}
+
+		</style>
+		<macrolist>
+			<macro id="nlheader" style="position: fixed; top: 0; width: 100%;">
+				<table table-layout="fixed" align="center" style="margin-top:0%; padding-top: 0%; position: fixed; top: 0; width: 100%;">
+					<tr style="margin-top:0%; padding-top: 0%;">
+						<td align="center" colspan="6" style="margin-top:0%; padding-top: 0%;"><p align="left" class='title'>DUNCAN GALVANIZING</p></td>
+					</tr>
+					<tr>
+						<td colspan="2" style="background-color: #e3e3e3;" align="left"><span class="infoFont">Customer</span></td>
+						<td colspan="2" style="background-color: #e3e3e3; margin-left:3px;" align="center"><span class="infoFont">Work Order #</span></td>
+						<td colspan="2" style="background-color: #e3e3e3; margin-left:3px;" align="right"><span class="infoFont">Primary Process Name</span></td>
+					</tr>
+					<tr>
+						<td colspan="2" style="background-color: #e3e3e3; font-size: 12pt;" align="left"><span class="infoValFont"><customtag for='customerName'></customtag></span></td>
+						<td colspan="2" style="background-color: #e3e3e3; margin-left:3px; font-size: 12pt;" align="center"><span class="infoValFont2"><customtag for='salesOrdNum'></customtag></span></td>
+						<td colspan="2" style="background-color: #e3e3e3; margin-left:3px; font-size: 12pt;" align="right"><span class="infoValFont"><customtag for='processType'></customtag></span></td>
+					</tr>
+					<tr>
+						<!-- <td><p align="left" width="90%">Process ID : <span class='headerValue'> <customtag for='processId'></customtag> </span></p></td>  -->
+						
+						<td colspan="2"><p align="left">Phone: <span class='headerValue'> <customtag for='customerPhone'></customtag> </span></p></td>
+						<td colspan="2"><p align="left" width="90%">Job Name: <span class='headerValue'> <customtag for='jobName'></customtag> </span></p></td>
+            			<td colspan="2"><p align="left"  width="90%">Received Date: <span class='headerValue'> <customtag for='receivedDate'></customtag> </span></p></td>
+						
+					</tr>
+					<tr>
+						<td colspan="2"><p align="left">Contact: <span class='headerValue'> <customtag for='contact'></customtag> </span></p></td>
+						<td colspan="2"><p align="left">PO: <span class='headerValue'> <customtag for='poNum'></customtag> </span></p></td>
+						<td colspan="2"><p align="left">Committed Date: <span class='headerValue'> <customtag for='committedDate'></customtag> </span></p></td>
+					</tr>
+					
+					
+					<tr>
+						<td colspan="2"><p align="left">Contact Phone: <span class='headerValue'> <customtag for='contactPhone'></customtag> </span></p></td>
+						<td colspan="2"><p align="left">Load: <span class='headerValue'> <customtag for='load'></customtag> </span></p></td>
+						<td colspan="2"><p align="left">Committed Date Notes: <span class='headerValue'> <customtag for='committedDateNotes'></customtag> </span></p></td>
+					</tr>
+					
+					<tr>
+						<td colspan="2"><p align="left">Memo: <span class='headerValue'> <customtag for='memo'></customtag> </span></p></td>
+						<td colspan="2"><p align="left">Total Load Weight: <span class='headerValue'> <customtag for='totalOutWeight'></customtag> </span></p></td>
+						<td colspan="2"><p align="left">Total Quantity: <span class='headerValue'> <customtag for='totalQty'></customtag> </span></p></td>
+					</tr>
+				</table>
+			</macro>
+			
+			<macro id="nlfooter">
+            				
+				<table class='tblfooter' width="100%">
+					<tr>
+						<td align="left">
+							<span align="left">
+								Printed on : <customtag for='printTimeStamp'></customtag>
+							</span>
+						</td>
+					
+						<td align="right">
+							<span align="right">
+								<pagenumber /> of
+								<totalpages />
+							</span>
+						</td>
+						
+					</tr>
+				</table>
+				
+			</macro>
+		</macrolist>
+	</head>
+
+	<body footer="nlfooter" footer-height="3%" header="nlheader" header-height="28%" padding="0.25in 0.25in 0.25in 0.25in"
+	 size="Letter">
+
+		{tbody}
+		
+	</body>
+</pdf>

@@ -1,0 +1,15 @@
+<manifest projecttype="ACCOUNTCUSTOMIZATION">
+  <projectname>Cycle</projectname>
+  <frameworkversion>1.0</frameworkversion>
+  <dependencies>
+    <features>
+      <feature required="true">SERVERSIDESCRIPTING</feature> 
+      <feature required="true">CRM</feature>   
+    </features>
+    <files>
+    <file>/SuiteScripts/Cycle/Pruebas netsuite.txt</file> 
+    <file>/SuiteScripts/SDF_APP_2/vscodeExtensionRestletTest.js</file>
+    <file>/SuiteScripts/SDF_APP_2/testSuitelet.js</file>
+    </files>
+  </dependencies>
+</manifest>

@@ -1,0 +1,145 @@
+{
+    /*
+     Script Name:SCH_Delete_All_Transaction.js
+     Author: Nikhil Huddar
+     Company:Plative
+     Date:
+     Version:
+     Script Modification Log:
+     -- Date --			-- Modified By --				--Requested By--				-- Description --
+   
+     Below is a summary of the process controls enforced by this script file.  The control logic is described
+     more fully, below, in the appropriate function headers and code blocks.
+     SCHEDULED FUNCTION
+     - scheduledFunction(type)
+     SUB-FUNCTIONS
+     - The following sub-functions are called by the above core functions in order to maintain code
+     modularization:
+     - NOT USED
+     */
+}
+// END SCRIPT DESCRIPTION BLOCK  ====================================
+
+
+
+// BEGIN FUNCTION ===================================================
+
+function SearchspecifiedinvoicesandSO()
+{
+    //  SCHEDULED FUNCTION CODE BODY
+    var column = new Array();    
+    column[0] = new nlobjSearchColumn('internalid')
+  
+    var results = nlapiSearchRecord(null, 265, null, column);
+    nlapiLogExecution('DEBUG', 'salesorder', 'results = ' + results);
+    return results;
+}
+    
+
+// END FUNCTION =====================================================
+
+
+
+// BEGIN SCHEDULED FUNCTION =============================================
+
+function schedulerFunction_deleteRecord(type)
+{
+	var context = nlapiGetContext();
+	
+	var usageBegin = context.getRemainingUsage();
+	nlapiLogExecution('DEBUG', 'Start Usage SUT_SaveRecord_recordTest', 'usageBegin ==' + usageBegin);
+		
+	var results = SearchspecifiedinvoicesandSO();
+	nlapiLogExecution('DEBUG', 'transaction', 'length= ' + results.length);
+	
+	//  results = null;
+	if (results != null) 
+	{
+		nlapiLogExecution('DEBUG', 'transaction', 'length= ' + results.length);
+		//for (var j = 0; j < 2; j++) 
+		for (var j = 0; j < results.length; j++)
+		{
+			var SOid = results[j].getValue('internalid');
+			SOid = parseInt(SOid);
+			nlapiLogExecution('DEBUG', 'transaction', ' SOid  = ' + SOid + ' j=' + j);
+			var usageBegin = context.getRemainingUsage();
+			if (j == 990) 
+			{
+				Schedulescriptafterusageexceeded();
+				break;
+			}
+			try 
+			{
+				if (SOid != null) 
+				{
+					var Delete_idSOID = nlapiDeleteRecord('account', SOid);
+					nlapiLogExecution('DEBUG', 'transaction', 'Delete_idSOID==' + Delete_idSOID);					
+				}				
+			} 
+			catch (e) 
+			{
+				nlapiLogExecution('DEBUG', 'transaction', 'e.getCode()  = ' + e);
+				//nlapiLogExecution('DEBUG', 'transaction', 'e.getCode()  = ' + e.getCode());
+				if (e instanceof nlobjError) 
+				{
+				
+					nlapiLogExecution('DEBUG', 'transaction', 'e.getCode()  = ' + e);
+				}
+			}			
+		}		
+	}
+}
+
+// END SCHEDULED FUNCTION ===============================================
+
+
+
+
+// Code for resheduling 
+function Schedulescriptafterusageexceeded(i)
+{
+	nlapiLogExecution('DEBUG','After Scheduling','Inside Schedulescriptafterusageexceeded');
+	////Define all parameters to schedule the script for voucher generation.
+	var params=new Array();
+	params['status']='scheduled';
+	params['runasadmin']='T';
+	
+	//params['custscript_invoice_id']=i;
+	var startDate = new Date();
+	params['startdate']=startDate.toUTCString();
+	
+	var status=nlapiScheduleScript(nlapiGetContext().getScriptId(), nlapiGetContext().getDeploymentId(),params);
+	///var status = nlapiScheduleScript(154, null,params);
+	nlapiLogExecution('DEBUG','After Scheduling','Script scheduled status='+ status);
+	
+	////If script is scheduled then successfuly then check for if status=queued
+	if (status == 'QUEUED') 
+	{
+		//nlapiLogExecution('DEBUG', 'schedulecreatevoucherforCampaign', 'Campaign script exit and script scheduled for first time=');
+	}
+}//fun Schedulescriptafterusageexceeded close
+
+
+function _logValidation(value)  
+{
+	if(value != null && value != '' && value != undefined && value.toString() != 'NaN' && value != NaN)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+function _nullValidation(value)
+{
+	if (value == null || value == 'NaN' || value == '' || value == undefined || value == '&nbsp;')
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
