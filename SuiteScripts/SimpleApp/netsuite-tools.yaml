@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=https://cycle.sh/schemas/netsuite-tools.v1.json
+
+version: 1
+
+restlets:
+  - name: greet
+    description: |
+      Simple demo tools that return greetings and trivial text transforms.
+      Use when the user asks to be greeted or to reverse a string.
+    scriptId: customscript_mcp_simple
+    deploymentId: customdeploy_mcp_simple
+    tools:
+      - name: get_greeting
+        description: Returns a personalized greeting for the given name.
+        inputSchema:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+              description: Person to greet
+        outputSchema:
+          type: object
+          properties:
+            greeting: { type: string }
+        examples:
+          - args: { name: Pablo }
+            result: { greeting: "Hello, Pablo" }
+
+      - name: reverse_text
+        description: Returns the input string with its characters reversed.
+        inputSchema:
+          type: object
+          required: [text]
+          properties:
+            text:
+              type: string
+              description: Text to reverse
+        outputSchema:
+          type: object
+          properties:
+            reversed: { type: string }
+        examples:
+          - args: { text: hello }
+            result: { reversed: olleh }
+
+      - name: recent_sales_orders
+        description: |
+          Returns the most recent N sales orders (default 10, max 50) with their
+          totals, customer, status, and currency. Use to inspect recent activity
+          or compute a quick aggregate amount across the latest orders.
+        inputSchema:
+          type: object
+          properties:
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 50
+              description: Number of recent orders to fetch (default 10, max 50)
+        outputSchema:
+          type: object
+          properties:
+            count: { type: integer }
+            totalAmount: { type: number }
+            orders:
+              type: array
+              items:
+                type: object
+                properties:
+                  tranid: { type: string }
+                  trandate: { type: string }
+                  customer: { type: string }
+                  status: { type: string }
+                  total: { type: number }
+                  currency: { type: string }
+        examples:
+          - args: { limit: 3 }
+            result:
+              count: 3
+              totalAmount: 12345.67
+              orders:
+                - tranid: "SO123"
+                  trandate: "4/27/2026"
+                  customer: "Acme Inc."
+                  status: "Pending Approval"
+                  total: 1234.56
+                  currency: "USD"
+
+      - name: get_suitelet
+        description: |
+          Returns the exact HTML the SimpleApp Suitelet would render.
+          Implemented in the shared library since NetSuite 2.1 forbids
+          cross-script-type requires — the RESTlet and Suitelet both
+          call simpleLogic.renderPage so their output is identical.
+        inputSchema:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Optional name (defaults to "world")
+        outputSchema:
+          type: object
+          properties:
+            html: { type: string }
+        examples:
+          - args: { name: Pablo }
+            result:
+              html: "<html>\n<body>\n  <h1>SimpleApp</h1>\n  <p>Hello, Pablo</p>\n  <button id=\"greet-btn\" onclick=\"alert('Hi from SimpleApp!')\">Say hi</button>\n</body>\n</html>"

@@ -1,0 +1,24 @@
+<restlet scriptid="customscript_mcp_simple">
+  <description>SimpleApp RESTlet bridge — dispatches actions declared in netsuite-tools.yaml</description>
+  <isinactive>F</isinactive>
+  <name>SimpleApp MCP RESTlet</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>F</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/SimpleApp/src/rl_simple.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_mcp_simple">
+      <allemployees>F</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>T</allroles>
+      <audslctrole></audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <loglevel>DEBUG</loglevel>
+      <runasrole></runasrole>
+      <status>RELEASED</status>
+      <title>SimpleApp MCP RESTlet</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</restlet>
