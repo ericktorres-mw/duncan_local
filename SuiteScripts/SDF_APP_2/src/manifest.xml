@@ -1,5 +1,6 @@
 <manifest projecttype="ACCOUNTCUSTOMIZATION">
   <projectname>Cycle</projectname>
+  <!-- deploy test 2026-04-30 -->
   <frameworkversion>1.0</frameworkversion>
   <dependencies>
     <features>
