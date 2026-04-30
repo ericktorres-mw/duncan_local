@@ -1,0 +1,17 @@
+<manifest projecttype="ACCOUNTCUSTOMIZATION">
+  <projectname>SimpleApp</projectname>
+  <frameworkversion>1.0</frameworkversion>
+  <dependencies>
+    <features>
+      <feature required="true">SERVERSIDESCRIPTING</feature>
+    </features>
+    <files>
+      <!-- Project dependencies -->
+      <file>/SuiteScripts/SimpleApp/src/sl_simple.js</file>
+      <file>/SuiteScripts/SimpleApp/src/sl_public.js</file>
+      <file>/SuiteScripts/SimpleApp/src/rl_simple.js</file>
+      <file>/SuiteScripts/SimpleApp/src/lib/simple_logic.js</file>
+      <!-- /Project dependencies -->
+    </files>
+  </dependencies>
+</manifest>

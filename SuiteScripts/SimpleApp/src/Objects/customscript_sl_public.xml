@@ -1,0 +1,25 @@
+<suitelet scriptid="customscript_sl_public">
+  <description>Public SimpleApp Suitelet (Available Without Login)</description>
+  <isinactive>F</isinactive>
+  <name>SimpleApp Public Suitelet</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>F</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/SimpleApp/src/sl_public.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_sl_public">
+      <allemployees>T</allemployees>
+      <allpartners>T</allpartners>
+      <allroles>T</allroles>
+      <audslctrole>ONLINE_FORM_USER</audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <isonline>T</isonline>
+      <loglevel>DEBUG</loglevel>
+      <runasrole>ADMINISTRATOR</runasrole>
+      <status>RELEASED</status>
+      <title>SimpleApp Public Suitelet</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>
