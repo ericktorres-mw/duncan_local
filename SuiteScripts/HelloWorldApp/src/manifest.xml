@@ -1,0 +1,14 @@
+<manifest projecttype="ACCOUNTCUSTOMIZATION">
+  <projectname>HelloWorldApp</projectname>
+  <frameworkversion>1.0</frameworkversion>
+  <dependencies>
+    <features>
+      <feature required="true">SERVERSIDESCRIPTING</feature>
+    </features>
+    <files>
+      <!-- Project dependencies -->
+      <file>/SuiteScripts/HelloWorldApp/src/sl_hello.js</file>
+      <!-- /Project dependencies -->
+    </files>
+  </dependencies>
+</manifest>
