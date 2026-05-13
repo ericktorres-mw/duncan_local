@@ -1,6 +1,5 @@
 <customrecordtype scriptid="customrecord_tutorial">
   <accesstype>CUSTRECORDENTRYPERM</accesstype>
-  <aidescription></aidescription>
   <allowattachments>T</allowattachments>
   <allowinlinedeleting>F</allowinlinedeleting>
   <allowinlinedetaching>T</allowinlinedetaching>
