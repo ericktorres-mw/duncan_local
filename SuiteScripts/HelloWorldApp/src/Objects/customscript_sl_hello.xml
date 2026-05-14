@@ -1,0 +1,25 @@
+<suitelet scriptid="customscript_sl_hello">
+  <description>HelloWorldApp Suitelet</description>
+  <isinactive>F</isinactive>
+  <name>HelloWorldApp Suitelet</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>F</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/HelloWorldApp/src/sl_hello.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_sl_hello">
+      <allemployees>F</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>T</allroles>
+      <audslctrole></audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <isonline>F</isonline>
+      <loglevel>DEBUG</loglevel>
+      <runasrole></runasrole>
+      <status>RELEASED</status>
+      <title>HelloWorldApp Suitelet</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>
