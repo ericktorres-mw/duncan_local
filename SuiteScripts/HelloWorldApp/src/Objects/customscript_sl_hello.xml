@@ -19,7 +19,7 @@
       <loglevel>DEBUG</loglevel>
       <runasrole></runasrole>
       <status>RELEASED</status>
-      <title>HelloWorldApp Suitelet</title>
+      <title>Priority Test v3</title>
     </scriptdeployment>
   </scriptdeployments>
 </suitelet>

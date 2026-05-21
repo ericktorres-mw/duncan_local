@@ -4,7 +4,6 @@
   <name>VS Code Extension RESTlet</name>
   <notifyadmins>F</notifyadmins>
   <notifyemails></notifyemails>
-  <notifyowner>F</notifyowner>
   <notifyuser>F</notifyuser>
   <scriptfile>[/SuiteScripts/SDF_APP_2/vscodeExtensionRestletTest.js]</scriptfile>
   <scriptdeployments>

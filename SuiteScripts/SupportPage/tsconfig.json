@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "amd",
+    "ignoreDeprecations": "6.0",
+    "target": "ES2019",
+    "strict": true,
+    "removeComments": false,
+    "noEmitOnError": true,
+    "typeRoots": [
+      "node_modules/@hitc/netsuite-types",
+      "node_modules/@types"
+    ]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}
