@@ -1,0 +1,25 @@
+<suitelet scriptid="customscript_sl_support">
+  <description>Public Support Page Suitelet (Available Without Login)</description>
+  <isinactive>F</isinactive>
+  <name>Support Page Suitelet</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>F</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/SupportPage/src/sl_support.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_sl_support">
+      <allemployees>T</allemployees>
+      <allpartners>T</allpartners>
+      <allroles>T</allroles>
+      <audslctrole>ONLINE_FORM_USER</audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <isonline>T</isonline>
+      <loglevel>DEBUG</loglevel>
+      <runasrole>ADMINISTRATOR</runasrole>
+      <status>RELEASED</status>
+      <title>Support Page Suitelet</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>

@@ -1,0 +1,16 @@
+<manifest projecttype="ACCOUNTCUSTOMIZATION">
+  <projectname>SupportPage</projectname>
+  <frameworkversion>1.0</frameworkversion>
+  <dependencies>
+    <features>
+      <feature required="true">SERVERSIDESCRIPTING</feature>
+      <feature required="true">CUSTOMRECORDS</feature>
+    </features>
+    <files>
+      <!-- Project dependencies -->
+      <file>/SuiteScripts/SupportPage/src/sl_support.js</file>
+      <file>/SuiteScripts/SupportPage/src/lib/support_logic.js</file>
+      <!-- /Project dependencies -->
+    </files>
+  </dependencies>
+</manifest>
