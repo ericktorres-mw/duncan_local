@@ -4,7 +4,7 @@
  *
  * Public Support Page for users external to NetSuite. Deployed with
  * `isonline=T` (Available Without Login) so anyone with the URL can reach
- * it without OAuth/TBA — no login required.
+ * it without OAuth/TBA - no login required.
  *
  * GET              -> renders the support page (form).
  * GET ?view=tickets -> renders all submitted tickets.
@@ -14,6 +14,7 @@
  * records here. Treat all incoming parameters as untrusted; the shared
  * library HTML-escapes everything before rendering.
  */
+
 import * as log    from "N/log";
 import * as record from "N/record";
 import * as search from "N/search";
@@ -41,7 +42,7 @@ function saveRequest(ticketId: string, params: Record<string, string>): number |
   }
 }
 
-function loadAllTickets(): support.Ticket[] {
+function loadTickets(limit?: number): support.Ticket[] {
   const tickets: support.Ticket[] = [];
   try {
     const s = search.create({
@@ -63,13 +64,17 @@ function loadAllTickets(): support.Ticket[] {
         topic:    result.getValue("custrecord_sup_req_topic") as string | null,
         date:     result.getValue("created")                 as string | null
       });
-      return true;
+      // Stop early once we have enough; `each` keeps iterating while we return true.
+      return limit === undefined || tickets.length < limit;
     });
   } catch (e) {
     log.error({ title: "Ticket search failed", details: e });
   }
   return tickets;
 }
+
+// Number of most-recent tickets previewed on the landing page.
+const RECENT_TICKETS_LIMIT = 3;
 
 function buildBaseUrl(request: EntryPoints.Suitelet.onRequestContext["request"]): string {
   // Strip query string; re-attach only the `script` and `deploy` params
@@ -90,7 +95,7 @@ export function onRequest(context: EntryPoints.Suitelet.onRequestContext): void 
   const base    = buildBaseUrl(request);
 
   if (request.method === "GET" && params.view === "tickets") {
-    response.write(support.renderTicketsPage({ tickets: loadAllTickets(), baseUrl: base }));
+    response.write(support.renderTicketsPage({ tickets: loadTickets(), baseUrl: base }));
     return;
   }
 
@@ -106,10 +111,19 @@ export function onRequest(context: EntryPoints.Suitelet.onRequestContext): void 
 
     log.audit({ title: "Support request created", details: { ticketId, recordId } });
 
-    response.write(support.renderPage({ submitted: true, name: params.name, email: params.email, ticketId, baseUrl: base }));
+    response.write(support.renderPage({
+      submitted: true,
+      name: params.name,
+      email: params.email,
+      ticketId,
+      baseUrl: base,
+      recentTickets: loadTickets(RECENT_TICKETS_LIMIT)
+    }));
     return;
   }
 
-  // Default: GET — support form
-  response.write(support.renderPage({ baseUrl: base }));
+  // Default: GET - support form
+  response.write(support.renderPage({ baseUrl: base, recentTickets: loadTickets(RECENT_TICKETS_LIMIT) }));
 }
+
+// SDF isolation Batch 1 verification - 2026-05-28T20:35:52Z

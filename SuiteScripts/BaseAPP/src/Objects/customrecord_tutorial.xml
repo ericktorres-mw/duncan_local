@@ -1,5 +1,6 @@
 <customrecordtype scriptid="customrecord_tutorial">
   <accesstype>CUSTRECORDENTRYPERM</accesstype>
+  <aidescription></aidescription>
   <allowattachments>T</allowattachments>
   <allowinlinedeleting>F</allowinlinedeleting>
   <allowinlinedetaching>T</allowinlinedetaching>
@@ -8,9 +9,8 @@
   <allownumberingoverride>F</allownumberingoverride>
   <allowquickadd>T</allowquickadd>
   <allowquicksearch>F</allowquicksearch>
-  <allowuiaccess>T</allowuiaccess>
   <customsegment></customsegment>
-  <description></description>
+  <description>keda3 test main3</description>
   <enabledle>T</enabledle>
   <enablekeywords>T</enablekeywords>
   <enablemailmerge>F</enablemailmerge>

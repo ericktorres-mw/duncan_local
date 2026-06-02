@@ -4,6 +4,8 @@
  * rendering) and the RESTlet (for JSON / MCP-tool responses). This file
  * has no @NScriptType, so it's a plain library — any script type can
  * safely require it.
+ *
+ * e2e: CYC-663 webhook pipeline check (sync path) — 2026-06-01
  */
 define([], function () {
   function getGreeting(args) {
