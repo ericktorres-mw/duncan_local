@@ -63,6 +63,14 @@ define([
   }
 
   const BATCH_USAGE_THRESHOLD = 100;
+  // Stop processing files 60 s before the 300 s RESTlet wall to leave room
+  // for the response to be serialised and returned.
+  const MAX_EXECUTION_MS = 240000;
+  // Keep the JSON response body under ~20 MB of base64 content to limit RAM
+  // usage on the backend per batch. The Node.js V8 hard limit is 536 MB, but
+  // smaller batches mean the backend holds less base64 in memory at once while
+  // writing files to disk for the baseline commit.
+  const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
   const DEFAULT_ROOT_FOLDER_NAME = "SuiteScripts";
 
   /**
@@ -388,6 +396,7 @@ define([
       // haven't started yet.
       const resumeRootName = lastPath ? lastPath.split("/")[0] : null;
       let skipUntilResume = !!resumeRootName;
+      let accumulatedBytes = 0;
 
       for (const root of rootFolders) {
         if (allFiles.resumePath) break;
@@ -404,11 +413,15 @@ define([
           // start from the beginning.
           root.name === resumeRootName ? lastPath : null,
           searchFilters,
-          ignoredPaths
+          ignoredPaths,
+          false,
+          startTime,
+          accumulatedBytes
         );
 
         allFiles.fetched.push(...files.fetched);
         allFiles.errors.push(...files.errors);
+        accumulatedBytes = files.accumulatedBytes;
 
         if (files.resumePath) {
           allFiles.resumePath = files.resumePath;
@@ -1135,6 +1148,9 @@ define([
     ignoredPaths,
     rootFolders = [],
   ) {
+    // TODO: results[] has no size cap — on large accounts with many recently-modified
+    // files this can accumulate unbounded memory. The getAllFiles path has MAX_RESPONSE_BYTES;
+    // this path should get a similar guard in a follow-up.
     const results = [];
     const errors = [];
     const folderPathCache = {}; // Cache folder paths to avoid repeated record.load calls
@@ -1417,15 +1433,27 @@ define([
     lastPath = null,
     searchFilters,
     ignoredPaths,
-    resumeFound = false
+    resumeFound = false,
+    startTime = null,
+    accumulatedBytes = 0
   ) {
     let fetched = [];
     let errors = [];
 
     // 1️⃣ Get files directly in this folder using folder join (paged)
+    // searchFilters arrive as plain "name"-keyed filters from the backend.
+    // Prefix each field with "file." so they apply to the joined file
+    // sub-record in this FOLDER-type search. "AND" string tokens are left
+    // unchanged. This keeps the caller contract simple — no need for callers
+    // to know which search type is used internally.
+    const joinedFilters = Array.isArray(searchFilters)
+      ? searchFilters.map(function (f) {
+          return Array.isArray(f) ? ["file." + f[0]].concat(f.slice(1)) : f;
+        })
+      : [];
     const filters = [["internalid", "is", folderId]];
-    if (searchFilters && searchFilters.length > 0) {
-      filters.push("AND", searchFilters);
+    if (joinedFilters.length > 0) {
+      filters.push("AND", joinedFilters);
     }
     const fileFolderSearch = search.create({
       type: search.Type.FOLDER,
@@ -1461,18 +1489,20 @@ define([
 
             let content = getFileContent64(fileId);
 
+            accumulatedBytes += content ? content.length : 0;
             fetched.push({ name: fileName, path, content });
 
-            const remainingUsage = runtime
-              .getCurrentScript()
-              .getRemainingUsage();
-            if (remainingUsage < BATCH_USAGE_THRESHOLD) {
-              // Stop and return partial results
+            const remainingUsage = runtime.getCurrentScript().getRemainingUsage();
+            const usageExhausted = remainingUsage < BATCH_USAGE_THRESHOLD;
+            const timeExhausted = startTime !== null && (Date.now() - startTime) > MAX_EXECUTION_MS;
+            const sizeExhausted = accumulatedBytes > MAX_RESPONSE_BYTES;
+
+            if (usageExhausted || timeExhausted || sizeExhausted) {
               logger.debug(
                 "Batch limit reached",
-                `Remaining Usage: ${remainingUsage}, Last Path: ${path}, processed files: ${fetched.length}`
+                `Remaining Usage: ${remainingUsage}, Elapsed: ${startTime !== null ? (Date.now() - startTime) + "ms" : "unknown"}, Response size: ${Math.round(accumulatedBytes / 1024 / 1024)}MB, Last Path: ${path}, processed files: ${fetched.length}`
               );
-              return { fetched, errors, resumePath: path, resumeFound: true };
+              return { fetched, errors, resumePath: path, resumeFound: true, accumulatedBytes };
             }
           } catch (err) {
             const fileName = path ? path.split("/").pop() : null;
@@ -1511,11 +1541,14 @@ define([
           lastPath,
           searchFilters,
           ignoredPaths,
-          resumeFound
+          resumeFound,
+          startTime,
+          accumulatedBytes
         );
 
         fetched.push(...subFiles.fetched);
         errors.push(...subFiles.errors);
+        accumulatedBytes = subFiles.accumulatedBytes;
 
         // If sub recursion returned a resumePath, stop and bubble up
         if (subFiles.resumePath) {
@@ -1524,6 +1557,7 @@ define([
             errors,
             resumePath: subFiles.resumePath,
             resumeFound: true,
+            accumulatedBytes,
           };
         }
 
@@ -1532,7 +1566,7 @@ define([
       }
     }
 
-    return { fetched, errors, resumePath: null, resumeFound };
+    return { fetched, errors, resumePath: null, resumeFound, accumulatedBytes };
   }
 
   function getFileContent64(fileId) {
@@ -1691,8 +1725,13 @@ define([
       if (pattern.startsWith("!")) continue;
       // Strip leading slash
       if (pattern.startsWith("/")) pattern = pattern.slice(1);
-      // Skip path patterns — only match filename globs
-      if (pattern.includes("/")) continue;
+      // **/*.ext — global extension glob: reduce to *.ext for filename matching
+      if (/^\*\*\/\*\..+$/.test(pattern)) {
+        pattern = pattern.slice(pattern.lastIndexOf("/") + 1);
+      } else if (pattern.includes("/")) {
+        // Skip all other path patterns — only match filename globs
+        continue;
+      }
       // Skip bare "*" — it would match everything, and without path
       // context we can't apply the negation re-includes that follow it
       if (pattern === "*") continue;
