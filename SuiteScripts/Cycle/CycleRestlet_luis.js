@@ -312,7 +312,8 @@ define([
             requestBody.lastPath,
             requestBody.searchFilters,
             requestBody.ignoredPaths,
-            rootFolders
+            rootFolders,
+            requestBody.maxResponseMb || null
           );
           break;
         case "fetchFiles":
@@ -375,17 +376,20 @@ define([
     lastPath = null,
     searchFilters,
     ignoredPaths,
-    rootFolders = []
+    rootFolders = [],
+    maxResponseMb = null
   ) {
     const startTime = Date.now();
     const startTimeUTC = new Date(startTime).toISOString();
     const rootNames = rootFolders.map((r) => r.name).join(", ");
+    // Allow the backend to tune batch size via BASELINE_BATCH_MAX_MB (default 20 MB).
+    const batchMaxBytes = maxResponseMb ? maxResponseMb * 1024 * 1024 : MAX_RESPONSE_BYTES;
 
     logger.audit(
       "Start getAllFiles",
       `Start time (UTC): ${startTimeUTC} | Resume from: ${
         lastPath || "START"
-      } | Roots: ${rootNames}`
+      } | Roots: ${rootNames} | MaxMB: ${Math.round(batchMaxBytes / 1024 / 1024)}`
     );
 
     try {
@@ -397,6 +401,10 @@ define([
       const resumeRootName = lastPath ? lastPath.split("/")[0] : null;
       let skipUntilResume = !!resumeRootName;
       let accumulatedBytes = 0;
+      // Capture the true governance baseline once, before any traversal starts.
+      const usageAtStart = runtime.getCurrentScript().getRemainingUsage();
+      // Aggregate traversal stats across all roots for the single summary log.
+      const batchStats = { foldersVisited: 0, filesSkipped: 0, filesConsidered: 0 };
 
       for (const root of rootFolders) {
         if (allFiles.resumePath) break;
@@ -416,7 +424,8 @@ define([
           ignoredPaths,
           false,
           startTime,
-          accumulatedBytes
+          accumulatedBytes,
+          batchMaxBytes
         );
 
         allFiles.fetched.push(...files.fetched);
@@ -426,19 +435,25 @@ define([
         if (files.resumePath) {
           allFiles.resumePath = files.resumePath;
         }
+
+        if (files.stats) {
+          batchStats.foldersVisited += files.stats.foldersVisited;
+          batchStats.filesSkipped += files.stats.filesSkipped;
+          batchStats.filesConsidered += files.stats.filesConsidered;
+        }
       }
 
-      logger.audit(
-        "Files Found",
-        `${allFiles.fetched.length} total files in this batch`
-      );
-
-      let resumePath = allFiles.resumePath;
-
+      const resumePath = allFiles.resumePath;
       const executionTime = Date.now() - startTime;
+      const usageAtEnd = runtime.getCurrentScript().getRemainingUsage();
+
       logger.audit(
         "Done getAllFiles",
-        `${allFiles.fetched.length} files fetched | Start time (UTC): ${startTimeUTC} | Execution time: ${executionTime}ms`
+        `files=${allFiles.fetched.length} errors=${allFiles.errors.length} resuming=${!!lastPath} ` +
+        `foldersVisited=${batchStats.foldersVisited} filesSkipped=${batchStats.filesSkipped} ` +
+        `usageBurned=${usageAtStart - usageAtEnd} usageRemaining=${usageAtEnd} ` +
+        `sizeMB=${Math.round(accumulatedBytes / 1024 / 1024)} elapsed=${executionTime}ms ` +
+        `complete=${!resumePath}`
       );
 
       return {
@@ -1435,8 +1450,16 @@ define([
     ignoredPaths,
     resumeFound = false,
     startTime = null,
-    accumulatedBytes = 0
+    accumulatedBytes = 0,
+    batchMaxBytes = MAX_RESPONSE_BYTES,
+    stats = null  // { foldersVisited, filesSkipped, filesConsidered }
   ) {
+    // Initialise stats object on the first (root) call only.
+    if (!stats) {
+      stats = { foldersVisited: 0, filesSkipped: 0, filesConsidered: 0 };
+    }
+    stats.foldersVisited++;
+
     let fetched = [];
     let errors = [];
 
@@ -1478,14 +1501,29 @@ define([
 
           // Handle resume: skip files until we find the last processed path
           if (!resumeFound && lastPath) {
+            stats.filesSkipped++;
             if (path === lastPath) {
               resumeFound = true; // start processing from next file
             }
             continue;
           }
+          stats.filesConsidered++;
 
           try {
-            if (shouldIgnorePath(toRepoPath(path, customFolder), ignoredPaths)) continue;
+            const repoPath = toRepoPath(path, customFolder);
+            if (shouldIgnorePath(repoPath, ignoredPaths)) continue;
+
+            if (!isValidGitPathSegments(repoPath)) {
+              errors.push(
+                createErrorObject(
+                  new Error("Invalid path: contains forbidden characters, reserved names, or invalid segments"),
+                  path,
+                  fileName,
+                  { reason: "invalid_git_path", repoPath }
+                )
+              );
+              continue;
+            }
 
             let content = getFileContent64(fileId);
 
@@ -1495,14 +1533,14 @@ define([
             const remainingUsage = runtime.getCurrentScript().getRemainingUsage();
             const usageExhausted = remainingUsage < BATCH_USAGE_THRESHOLD;
             const timeExhausted = startTime !== null && (Date.now() - startTime) > MAX_EXECUTION_MS;
-            const sizeExhausted = accumulatedBytes > MAX_RESPONSE_BYTES;
+            const sizeExhausted = accumulatedBytes > batchMaxBytes;
 
             if (usageExhausted || timeExhausted || sizeExhausted) {
               logger.debug(
                 "Batch limit reached",
                 `Remaining Usage: ${remainingUsage}, Elapsed: ${startTime !== null ? (Date.now() - startTime) + "ms" : "unknown"}, Response size: ${Math.round(accumulatedBytes / 1024 / 1024)}MB, Last Path: ${path}, processed files: ${fetched.length}`
               );
-              return { fetched, errors, resumePath: path, resumeFound: true, accumulatedBytes };
+              return { fetched, errors, resumePath: path, resumeFound: true, accumulatedBytes, stats };
             }
           } catch (err) {
             const fileName = path ? path.split("/").pop() : null;
@@ -1543,7 +1581,9 @@ define([
           ignoredPaths,
           resumeFound,
           startTime,
-          accumulatedBytes
+          accumulatedBytes,
+          batchMaxBytes,
+          stats
         );
 
         fetched.push(...subFiles.fetched);
@@ -1558,6 +1598,7 @@ define([
             resumePath: subFiles.resumePath,
             resumeFound: true,
             accumulatedBytes,
+            stats,
           };
         }
 
@@ -1566,7 +1607,7 @@ define([
       }
     }
 
-    return { fetched, errors, resumePath: null, resumeFound, accumulatedBytes };
+    return { fetched, errors, resumePath: null, resumeFound, accumulatedBytes, stats };
   }
 
   function getFileContent64(fileId) {
@@ -1709,6 +1750,36 @@ define([
       return fcPath.slice(prefix.length);
     }
     return fcPath;
+  }
+
+  /**
+   * Returns true when every segment of a repo-relative path is a valid git
+   * filename — no forbidden characters, no Windows-reserved names, no trailing
+   * dots/spaces. Mirrors the backend isValidFileName rules so invalid files are
+   * rejected here before their content is fetched, avoiding wasted RESTlet
+   * governance and unnecessary bytes in the batch response.
+   *
+   * NOTE: mirrors isValidFileName in services/backend-saas/src/handlers/git.handler.ts.
+   * Any rule change must be applied in both places.
+   *
+   * Forbidden characters: < > : " / \ | ? * and ASCII control chars 0x00-0x1F.
+   * Note: "/" is the path separator so it is allowed between segments, not within.
+   */
+  var INVALID_SEGMENT_RE = /[<>:"/\\|?*\x00-\x1F]/;
+  var WINDOWS_RESERVED_RE = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
+  function isValidGitPathSegments(repoPath) {
+    if (!repoPath) return false;
+    var segments = repoPath.split("/");
+    for (var i = 0; i < segments.length; i++) {
+      var seg = segments[i];
+      if (seg === "") continue; // leading or trailing slash — skip
+      if (seg === "." || seg === "..") return false; // path traversal
+      var trimmed = seg.replace(/[\s.]+$/, "");
+      if (!trimmed) return false; // only dots/spaces
+      if (INVALID_SEGMENT_RE.test(seg)) return false;
+      if (WINDOWS_RESERVED_RE.test(seg)) return false;
+    }
+    return true;
   }
 
   /**
