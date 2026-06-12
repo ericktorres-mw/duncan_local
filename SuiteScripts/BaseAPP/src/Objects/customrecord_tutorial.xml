@@ -9,8 +9,9 @@
   <allownumberingoverride>F</allownumberingoverride>
   <allowquickadd>T</allowquickadd>
   <allowquicksearch>F</allowquicksearch>
+  <allowuiaccess>T</allowuiaccess>
   <customsegment></customsegment>
-  <description>keda3 test main3</description>
+  <description></description>
   <enabledle>T</enabledle>
   <enablekeywords>T</enablekeywords>
   <enablemailmerge>F</enablemailmerge>
