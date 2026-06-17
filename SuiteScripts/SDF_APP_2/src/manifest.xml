@@ -10,7 +10,6 @@
     <file>/SuiteScripts/Cycle/Pruebas netsuite.txt</file> 
     <file>/SuiteScripts/SDF_APP_2/vscodeExtensionRestletTest.js</file>
     <file>/SuiteScripts/SDF_APP_2/testSuitelet.js</file>
-    <file>/SuiteScripts/SDF_APP_2/testSuitelet1.js</file>
     </files>
   </dependencies>
 </manifest>
