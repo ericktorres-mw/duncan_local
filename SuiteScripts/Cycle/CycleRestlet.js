@@ -5,6 +5,19 @@
  * @author Cycle
  */
 
+/*
+ * NOTICE: Do not modify this file or its associated NetSuite script/deployment records.
+ *
+ * This RESTlet is deployed and maintained by Cycle.sh as part of the Cycle
+ * integration installed in this NetSuite account.
+ *
+ * Unauthorized changes may cause synchronization failures, deployment errors,
+ * or unexpected behavior across connected environments.
+ *
+ * This file is a proprietary component of Cycle.sh and should only be updated
+ * through authorized Cycle deployment processes.
+ */
+
 define([
   "N/record",
   "N/search",
@@ -17,6 +30,16 @@ define([
   // Account ID that this restlet was deployed for - injected during SDF deployment
   // This constant is compared against the expectedAccountId sent from the backend
   const DEPLOYED_ACCOUNT_ID = "1233958_SB1";
+
+  // Injected at deploy time by deployCycleRestlet. "true" in local/dev environments,
+  // "false" in staging and production. Controls whether DEBUG and AUDIT log entries
+  // are collected into the response payload sent back to the backend.
+  // In production, only ERROR entries are collected — this prevents debug noise
+  // from inflating response size and leaking internal details.
+  // NOTE: stored as a raw string first so the minifier cannot constant-fold the
+  // placeholder away before deploy-time substitution replaces it.
+  var _RESTLET_DEBUG_FLAG = "true";
+  var RESTLET_DEBUG = _RESTLET_DEBUG_FLAG.indexOf("true") === 0;
 
   // Per-invocation folder-ID cache. A RESTlet invocation often touches many
   // files inside the same deep folder (e.g. `SuiteScripts/A/B/*.js`). Without
@@ -108,24 +131,50 @@ define([
     return { resolved: resolved, missing: missing };
   }
 
-  // Global log collector for sending logs to backend
+  // Global log collector for sending logs to backend.
+  // Hard caps prevent a tampered or misbehaving log entry from inflating the
+  // response and causing an OOM on the backend (CYC-705).
+  const LOG_MAX_ENTRIES = 100;
+  const LOG_MAX_ENTRY_CHARS = 2048; // ~2 KB per entry (title + details combined)
+
   const logCollector = {
     logs: [],
-    maxLogs: 100, // Limit number of logs to avoid large responses
+
+    capNotified: false,
 
     add: function (level, title, details) {
-      if (this.logs.length >= this.maxLogs) return; // Don't exceed max
+      if (this.logs.length >= LOG_MAX_ENTRIES) {
+        // Emit one NetSuite execution-log error the first time we hit the cap
+        // so operators can see it without inflating the response payload.
+        if (!this.capNotified) {
+          this.capNotified = true;
+          log.error("Log collector cap reached", "Max " + LOG_MAX_ENTRIES + " entries — further entries suppressed");
+        }
+        return;
+      }
+
+      var titleStr = title != null ? String(title) : "";
+      var detailsStr = details != null ? String(details) : "";
+      if (titleStr.length + detailsStr.length > LOG_MAX_ENTRY_CHARS) {
+        if (titleStr.length >= LOG_MAX_ENTRY_CHARS) {
+          titleStr = titleStr.slice(0, LOG_MAX_ENTRY_CHARS);
+          detailsStr = "";
+        } else {
+          detailsStr = detailsStr.slice(0, LOG_MAX_ENTRY_CHARS - titleStr.length);
+        }
+      }
 
       this.logs.push({
         timestamp: new Date().toISOString(),
         level: level,
-        title: title,
-        details: details,
+        title: titleStr,
+        details: detailsStr,
       });
     },
 
     clear: function () {
       this.logs = [];
+      this.capNotified = false;
     },
 
     get: function () {
@@ -133,14 +182,18 @@ define([
     },
   };
 
-  // Wrapper functions for logging that also collect logs
+  // Wrapper functions for logging that also collect logs.
+  // DEBUG and AUDIT entries are suppressed (both NS execution log and response
+  // payload) when RESTLET_DEBUG is false — i.e. in staging and production.
   const logger = {
     debug: function (title, details) {
+      if (!RESTLET_DEBUG) return;
       log.debug(title, details);
       logCollector.add("DEBUG", title, details);
     },
 
     audit: function (title, details) {
+      if (!RESTLET_DEBUG) return;
       log.audit(title, details);
       logCollector.add("AUDIT", title, details);
     },
@@ -234,29 +287,15 @@ define([
   }
 
   function doGet(requestParams) {
-    // Validate account ID if provided in the request
     var accountValidationError = validateAccountId(requestParams.expectedAccountId);
     if (accountValidationError) {
       return accountValidationError;
     }
 
-    logger.debug(
-      "RESTlet GET",
-      "Request received with params: " + JSON.stringify(requestParams)
-    );
-    var user = runtime.getCurrentUser();
     return {
       success: true,
-      message: "Restlet get response",
+      status: "ok",
       timestamp: new Date().toISOString(),
-      method: "GET",
-      requestParams: requestParams,
-      userInfo: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
     };
   }
 
@@ -312,7 +351,8 @@ define([
             requestBody.lastPath,
             requestBody.searchFilters,
             requestBody.ignoredPaths,
-            rootFolders
+            rootFolders,
+            requestBody.maxResponseMb || null
           );
           break;
         case "fetchFiles":
@@ -336,20 +376,10 @@ define([
           break;
 
         default:
-          var user = runtime.getCurrentUser();
           result = {
-            success: true,
-            message: "RESTlet POST response",
-            timestamp: new Date().toISOString(),
-            method: "POST",
-            receivedData: requestBody,
-            userInfo: {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              role: user.role,
-            },
-            echoData: requestBody,
+            success: false,
+            error: "UNKNOWN_ACTION",
+            message: "Unknown action: " + action,
           };
       }
 
@@ -375,17 +405,20 @@ define([
     lastPath = null,
     searchFilters,
     ignoredPaths,
-    rootFolders = []
+    rootFolders = [],
+    maxResponseMb = null
   ) {
     const startTime = Date.now();
     const startTimeUTC = new Date(startTime).toISOString();
     const rootNames = rootFolders.map((r) => r.name).join(", ");
+    // Allow the backend to tune batch size via BASELINE_BATCH_MAX_MB (default 20 MB).
+    const batchMaxBytes = maxResponseMb ? maxResponseMb * 1024 * 1024 : MAX_RESPONSE_BYTES;
 
     logger.audit(
       "Start getAllFiles",
       `Start time (UTC): ${startTimeUTC} | Resume from: ${
         lastPath || "START"
-      } | Roots: ${rootNames}`
+      } | Roots: ${rootNames} | MaxMB: ${Math.round(batchMaxBytes / 1024 / 1024)}`
     );
 
     try {
@@ -397,6 +430,10 @@ define([
       const resumeRootName = lastPath ? lastPath.split("/")[0] : null;
       let skipUntilResume = !!resumeRootName;
       let accumulatedBytes = 0;
+      // Capture the true governance baseline once, before any traversal starts.
+      const usageAtStart = runtime.getCurrentScript().getRemainingUsage();
+      // Aggregate traversal stats across all roots for the single summary log.
+      const batchStats = { foldersVisited: 0, filesSkipped: 0, filesInvalid: 0, filesConsidered: 0 };
 
       for (const root of rootFolders) {
         if (allFiles.resumePath) break;
@@ -416,7 +453,8 @@ define([
           ignoredPaths,
           false,
           startTime,
-          accumulatedBytes
+          accumulatedBytes,
+          batchMaxBytes
         );
 
         allFiles.fetched.push(...files.fetched);
@@ -426,19 +464,26 @@ define([
         if (files.resumePath) {
           allFiles.resumePath = files.resumePath;
         }
+
+        if (files.stats) {
+          batchStats.foldersVisited += files.stats.foldersVisited;
+          batchStats.filesSkipped += files.stats.filesSkipped;
+          batchStats.filesInvalid += files.stats.filesInvalid;
+          batchStats.filesConsidered += files.stats.filesConsidered;
+        }
       }
 
-      logger.audit(
-        "Files Found",
-        `${allFiles.fetched.length} total files in this batch`
-      );
-
-      let resumePath = allFiles.resumePath;
-
+      const resumePath = allFiles.resumePath;
       const executionTime = Date.now() - startTime;
+      const usageAtEnd = runtime.getCurrentScript().getRemainingUsage();
+
       logger.audit(
         "Done getAllFiles",
-        `${allFiles.fetched.length} files fetched | Start time (UTC): ${startTimeUTC} | Execution time: ${executionTime}ms`
+        `files=${allFiles.fetched.length} errors=${allFiles.errors.length} resuming=${!!lastPath} ` +
+        `foldersVisited=${batchStats.foldersVisited} filesSkipped=${batchStats.filesSkipped} filesInvalid=${batchStats.filesInvalid} ` +
+        `usageBurned=${usageAtStart - usageAtEnd} usageRemaining=${usageAtEnd} ` +
+        `sizeMB=${Math.round(accumulatedBytes / 1024 / 1024)} elapsed=${executionTime}ms ` +
+        `complete=${!resumePath}`
       );
 
       return {
@@ -480,7 +525,6 @@ define([
 
     const fetched = [];
     const errors = [];
-    const logs = [];
 
     if (!Array.isArray(filesToFetch) || filesToFetch.length === 0) {
       const executionTime = Date.now() - startTime;
@@ -488,7 +532,6 @@ define([
         success: true,
         fetched,
         errors,
-        logs,
         lastPath: null,
         isComplete: true,
         executionTime,
@@ -511,7 +554,6 @@ define([
             success: true,
             fetched,
             errors,
-            logs,
             lastPath: path,
             isComplete: false,
             executionTime,
@@ -534,7 +576,6 @@ define([
       success: true,
       fetched,
       errors,
-      logs,
       lastPath: null,
       isComplete: true,
       executionTime,
@@ -1148,9 +1189,9 @@ define([
     ignoredPaths,
     rootFolders = [],
   ) {
-    // TODO: results[] has no size cap — on large accounts with many recently-modified
+    // TODO(CYC-705): results[] has no size cap — on large accounts with many recently-modified
     // files this can accumulate unbounded memory. The getAllFiles path has MAX_RESPONSE_BYTES;
-    // this path should get a similar guard in a follow-up.
+    // add a similar page/entry cap here in a follow-up.
     const results = [];
     const errors = [];
     const folderPathCache = {}; // Cache folder paths to avoid repeated record.load calls
@@ -1435,8 +1476,16 @@ define([
     ignoredPaths,
     resumeFound = false,
     startTime = null,
-    accumulatedBytes = 0
+    accumulatedBytes = 0,
+    batchMaxBytes = MAX_RESPONSE_BYTES,
+    stats = null  // { foldersVisited, filesSkipped, filesInvalid, filesConsidered }
   ) {
+    // Initialise stats object on the first (root) call only.
+    if (!stats) {
+      stats = { foldersVisited: 0, filesSkipped: 0, filesInvalid: 0, filesConsidered: 0 };
+    }
+    stats.foldersVisited++;
+
     let fetched = [];
     let errors = [];
 
@@ -1476,16 +1525,67 @@ define([
         if (fileId && fileName) {
           const path = prefix + fileName;
 
-          // Handle resume: skip files until we find the last processed path
+          // Resume check runs before any validation so a stored cursor that
+          // happens to point at an invalid-named file (e.g. a slash-name from
+          // before this guard existed) can still be matched and skipped past.
           if (!resumeFound && lastPath) {
+            stats.filesSkipped++;
             if (path === lastPath) {
               resumeFound = true; // start processing from next file
             }
             continue;
           }
 
+          // Reject filenames containing '/'. NetSuite allows '/' in file names;
+          // git does not. isValidGitPathSegments splits on '/' and treats each
+          // part as a segment — "a/b.txt" as a raw filename would pass it
+          // undetected. The explicit indexOf check catches it before assembly.
+          if (fileName.indexOf("/") !== -1) {
+            stats.filesSkipped++;
+            stats.filesInvalid++;
+            errors.push(
+              createErrorObject(
+                new Error("Invalid filename: contains '/' which is forbidden in git paths (NetSuite allows this in file names)"),
+                path,
+                fileName,
+                { reason: "invalid_git_path" }
+              )
+            );
+            continue;
+          }
+
+          // Validate remaining forbidden characters, reserved names, etc.
+          if (!isValidGitPathSegments(fileName)) {
+            stats.filesSkipped++;
+            stats.filesInvalid++;
+            errors.push(
+              createErrorObject(
+                new Error("Invalid filename: contains forbidden characters, reserved names, or invalid segments"),
+                path,
+                fileName,
+                { reason: "invalid_git_path" }
+              )
+            );
+            continue;
+          }
+
+          stats.filesConsidered++;
+
           try {
-            if (shouldIgnorePath(toRepoPath(path, customFolder), ignoredPaths)) continue;
+            const repoPath = toRepoPath(path, customFolder);
+            if (shouldIgnorePath(repoPath, ignoredPaths)) continue;
+
+            if (!isValidGitPathSegments(repoPath)) {
+              errors.push(
+                createErrorObject(
+                  new Error("Invalid path: contains forbidden characters, reserved names, or invalid segments"),
+                  path,
+                  fileName,
+                  { reason: "invalid_git_path", repoPath }
+                )
+              );
+              continue;
+            }
 
             let content = getFileContent64(fileId);
 
@@ -1495,14 +1595,14 @@ define([
             const remainingUsage = runtime.getCurrentScript().getRemainingUsage();
             const usageExhausted = remainingUsage < BATCH_USAGE_THRESHOLD;
             const timeExhausted = startTime !== null && (Date.now() - startTime) > MAX_EXECUTION_MS;
-            const sizeExhausted = accumulatedBytes > MAX_RESPONSE_BYTES;
+            const sizeExhausted = accumulatedBytes > batchMaxBytes;
 
             if (usageExhausted || timeExhausted || sizeExhausted) {
               logger.debug(
                 "Batch limit reached",
                 `Remaining Usage: ${remainingUsage}, Elapsed: ${startTime !== null ? (Date.now() - startTime) + "ms" : "unknown"}, Response size: ${Math.round(accumulatedBytes / 1024 / 1024)}MB, Last Path: ${path}, processed files: ${fetched.length}`
               );
-              return { fetched, errors, resumePath: path, resumeFound: true, accumulatedBytes };
+              return { fetched, errors, resumePath: path, resumeFound: true, accumulatedBytes, stats };
             }
           } catch (err) {
             const fileName = path ? path.split("/").pop() : null;
@@ -1543,7 +1643,9 @@ define([
           ignoredPaths,
           resumeFound,
           startTime,
-          accumulatedBytes
+          accumulatedBytes,
+          batchMaxBytes,
+          stats
         );
 
         fetched.push(...subFiles.fetched);
@@ -1558,6 +1660,7 @@ define([
             resumePath: subFiles.resumePath,
             resumeFound: true,
             accumulatedBytes,
+            stats,
           };
         }
 
@@ -1566,7 +1669,7 @@ define([
       }
     }
 
-    return { fetched, errors, resumePath: null, resumeFound, accumulatedBytes };
+    return { fetched, errors, resumePath: null, resumeFound, accumulatedBytes, stats };
   }
 
   function getFileContent64(fileId) {
@@ -1712,6 +1815,36 @@ define([
   }
 
   /**
+   * Returns true when every segment of a repo-relative path is a valid git
+   * filename — no forbidden characters, no Windows-reserved names, no trailing
+   * dots/spaces. Mirrors the backend isValidFileName rules so invalid files are
+   * rejected here before their content is fetched, avoiding wasted RESTlet
+   * governance and unnecessary bytes in the batch response.
+   *
+   * NOTE: mirrors isValidFileName in services/backend-saas/src/handlers/git.handler.ts.
+   * Any rule change must be applied in both places.
+   *
+   * Forbidden characters: < > : " / \ | ? * and ASCII control chars 0x00-0x1F.
+   * Note: "/" is the path separator so it is allowed between segments, not within.
+   */
+  var INVALID_SEGMENT_RE = /[<>:"/\\|?*\x00-\x1F]/;
+  var WINDOWS_RESERVED_RE = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
+  function isValidGitPathSegments(repoPath) {
+    if (!repoPath) return false;
+    var segments = repoPath.split("/");
+    for (var i = 0; i < segments.length; i++) {
+      var seg = segments[i];
+      if (seg === "") continue; // leading or trailing slash — skip
+      if (seg === "." || seg === "..") return false; // path traversal
+      var trimmed = seg.replace(/[\s.]+$/, "");
+      if (!trimmed) return false; // only dots/spaces
+      if (INVALID_SEGMENT_RE.test(seg)) return false;
+      if (WINDOWS_RESERVED_RE.test(seg)) return false;
+    }
+    return true;
+  }
+
+  /**
    * Lightweight filename-only ignore check for deleted-file detection.
    * Only applies non-negation patterns that don't contain "/" (e.g.
    * "*.pdf", "*.log"). Skips path-based patterns and negations because
@@ -1746,6 +1879,15 @@ define([
     return false;
   }
 
+  // NOTE: This is a hand-rolled regex implementation of gitignore matching.
+  // It diverges from the TS-side `ignore` npm package in one important way:
+  // intermediate unlock patterns like `!/Templates/` (trailing slash) are
+  // stripped of their leading slash and compiled to `^Templates\/$`, which
+  // never matches a file path. The effective unlock in this engine is always
+  // the terminal `!/Folder/**` pattern. The `!/Ancestor/` and `/Ancestor/*`
+  // patterns emitted by generateNestedIncludePatterns are load-bearing in the
+  // TS path but dead weight here. End results are identical; both reach the
+  // same include/exclude decision via different pattern mechanics.
   function shouldIgnorePath(filePath, ignoredPaths) {
     const fileName = filePath.split("/").pop() || "";
 
