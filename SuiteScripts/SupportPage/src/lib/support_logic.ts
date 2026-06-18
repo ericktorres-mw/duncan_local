@@ -72,7 +72,7 @@ const SHARED_STYLES = [
   "           background: var(--bg); color: var(--ink);",
   "           display: flex; flex-direction: column; }",
   "    header { position: relative; overflow: hidden; color: #fff;",
-  "             padding: 56px 20px 64px; text-align: center;",
+  "             padding: 72px 20px 96px; text-align: center;",
   "             background: linear-gradient(135deg, var(--header-grad-from) 0%, var(--header-grad-via) 55%, var(--header-grad-to) 100%); }",
   "    header::before { content: ''; position: absolute; inset: 0;",
   "             background-image: var(--header-pattern);",
@@ -93,7 +93,7 @@ const SHARED_STYLES = [
   "             transition: background .15s ease, transform .15s ease, border-color .15s ease; }",
   "    .theme-toggle:hover { background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.32); }",
   "    .theme-toggle:active { transform: scale(.95); }",
-  "    main { width: 100%; max-width: 760px; margin: -28px auto 56px;",
+  "    main { width: 100%; max-width: 760px; margin: 24px auto 56px;",
   "           padding: 0 20px; flex: 1; position: relative; z-index: 1; }",
   "    .card { background: var(--card); border: 1px solid var(--card-border);",
   "            border-radius: 14px; padding: 28px; margin-top: 20px;",
@@ -196,6 +196,21 @@ const SHARED_STYLES = [
   "    .badge-open { background: var(--badge-open-bg); color: var(--badge-open-color); }",
   "    .empty { color: var(--muted); text-align: center; padding: 40px 0;",
   "             font-size: 14px; }",
+  "    .ticket-grid { display: grid; gap: 14px; margin-top: 18px;",
+  "             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }",
+  "    .ticket-card { display: flex; flex-direction: column; gap: 8px;",
+  "             padding: 16px; border: 1px solid var(--line); border-radius: 11px;",
+  "             background: var(--bg-2); text-decoration: none; color: inherit;",
+  "             transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }",
+  "    .ticket-card:hover { border-color: var(--brand); box-shadow: var(--shadow-hover);",
+  "             transform: translateY(-2px); }",
+  "    .ticket-card .tc-head { display: flex; align-items: center;",
+  "             justify-content: space-between; gap: 8px; }",
+  "    .ticket-card .tc-name { font-size: 15px; font-weight: 600; color: var(--ink);",
+  "             letter-spacing: -0.01em; }",
+  "    .ticket-card .tc-topic { font-size: 13px; color: var(--ink-2); line-height: 1.4; }",
+  "    .ticket-card .tc-date { font-size: 12px; color: var(--muted); margin-top: 4px;",
+  "             font-variant-numeric: tabular-nums; }",
   "    footer { position: relative; text-align: center; color: var(--muted);",
   "             font-size: 12px; padding: 24px 20px 28px; margin-top: 16px;",
   "             border-top: 1px solid var(--line); letter-spacing: .01em; }",
@@ -203,11 +218,11 @@ const SHARED_STYLES = [
   "             border-radius: 999px; vertical-align: middle; margin: 0 8px 2px;",
   "             background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%); }",
   "    @media (max-width: 600px) {",
-  "      header { padding: 44px 18px 56px; }",
+  "      header { padding: 56px 18px 72px; }",
   "      header h1 { font-size: 28px; }",
   "      header p { font-size: 15px; }",
   "      .card { padding: 22px; border-radius: 12px; }",
-  "      main { margin-top: -24px; }",
+  "      main { margin-top: 24px; }",
   "    }",
   "    /* Animations */",
   "    @keyframes card-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }",
@@ -336,13 +351,16 @@ export function escapeHtml(value: unknown): string {
 export function renderRecentTicketsCard(tickets: Ticket[], ticketsUrl: string): string {
   if (!tickets || tickets.length === 0) return "";
 
-  const rows = tickets.map(t => [
-    "<tr>",
-    `  <td><code>${escapeHtml(t.ticketId)}</code></td>`,
-    `  <td>${escapeHtml(t.name ?? "—")}</td>`,
-    `  <td>${escapeHtml(t.topic ?? "—")}</td>`,
-    `  <td>${escapeHtml(t.date ?? "—")}</td>`,
-    "</tr>"
+  const cards = tickets.map(t => [
+    `      <div class="ticket-card">`,
+    `        <div class="tc-head">`,
+    `          <code>${escapeHtml(t.ticketId)}</code>`,
+    `          <span class="badge badge-open">Open</span>`,
+    "        </div>",
+    `        <div class="tc-name">${escapeHtml(t.name ?? "—")}</div>`,
+    `        <div class="tc-topic">${escapeHtml(t.topic ?? "—")}</div>`,
+    `        <div class="tc-date">${escapeHtml(t.date ?? "—")}</div>`,
+    "      </div>"
   ].join("\n")).join("\n");
 
   return [
@@ -351,12 +369,9 @@ export function renderRecentTicketsCard(tickets: Ticket[], ticketsUrl: string): 
     `        <h2>Latest tickets</h2>`,
     `        <a class="link" href="${ticketsUrl}">View all &rarr;</a>`,
     "      </div>",
-    "      <table>",
-    "        <thead>",
-    "          <tr><th>Ticket ID</th><th>Name</th><th>Topic</th><th>Submitted</th></tr>",
-    "        </thead>",
-    `        <tbody>${rows}</tbody>`,
-    "      </table>",
+    `      <div class="ticket-grid">`,
+    cards,
+    "      </div>",
     "    </section>"
   ].join("\n");
 }
