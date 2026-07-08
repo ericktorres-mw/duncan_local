@@ -8,6 +8,8 @@
     <files>
       <!-- Project dependencies -->
       <file>/SuiteScripts/HelloWorldApp/src/sl_hello.js</file>
+      <file>/SuiteScripts/HelloWorldApp/src/lib/survey_logic.js</file>
+      <file>/SuiteScripts/HelloWorldApp/src/lib/survey_logic.test.js</file>
       <!-- /Project dependencies -->
     </files>
   </dependencies>

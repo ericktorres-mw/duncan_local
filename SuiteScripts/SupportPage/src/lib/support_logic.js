@@ -10,10 +10,7 @@
 define(["require", "exports"], function (require, exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.escapeHtml = escapeHtml;
-    exports.renderRecentTicketsCard = renderRecentTicketsCard;
-    exports.renderPage = renderPage;
-    exports.renderTicketsPage = renderTicketsPage;
+    exports.renderAgendaPage = exports.renderTicketsPage = exports.renderPage = exports.renderRecentTicketsCard = exports.escapeHtml = void 0;
     const MSG_MAX = 2000;
     const SHARED_STYLES = [
         "    :root {",
@@ -55,7 +52,7 @@ define(["require", "exports"], function (require, exports) {
         "           background: var(--bg); color: var(--ink);",
         "           display: flex; flex-direction: column; }",
         "    header { position: relative; overflow: hidden; color: #fff;",
-        "             padding: 56px 20px 64px; text-align: center;",
+        "             padding: 72px 20px 128px; text-align: center;",
         "             background: linear-gradient(135deg, var(--header-grad-from) 0%, var(--header-grad-via) 55%, var(--header-grad-to) 100%); }",
         "    header::before { content: ''; position: absolute; inset: 0;",
         "             background-image: var(--header-pattern);",
@@ -76,7 +73,7 @@ define(["require", "exports"], function (require, exports) {
         "             transition: background .15s ease, transform .15s ease, border-color .15s ease; }",
         "    .theme-toggle:hover { background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.32); }",
         "    .theme-toggle:active { transform: scale(.95); }",
-        "    main { width: 100%; max-width: 760px; margin: -28px auto 56px;",
+        "    main { width: 100%; max-width: 760px; margin: 24px auto 56px;",
         "           padding: 0 20px; flex: 1; position: relative; z-index: 1; }",
         "    .card { background: var(--card); border: 1px solid var(--card-border);",
         "            border-radius: 14px; padding: 28px; margin-top: 20px;",
@@ -179,6 +176,21 @@ define(["require", "exports"], function (require, exports) {
         "    .badge-open { background: var(--badge-open-bg); color: var(--badge-open-color); }",
         "    .empty { color: var(--muted); text-align: center; padding: 40px 0;",
         "             font-size: 14px; }",
+        "    .ticket-grid { display: grid; gap: 14px; margin-top: 18px;",
+        "             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }",
+        "    .ticket-card { display: flex; flex-direction: column; gap: 8px;",
+        "             padding: 16px; border: 1px solid var(--line); border-radius: 11px;",
+        "             background: var(--bg-2); text-decoration: none; color: inherit;",
+        "             transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }",
+        "    .ticket-card:hover { border-color: var(--brand); box-shadow: var(--shadow-hover);",
+        "             transform: translateY(-2px); }",
+        "    .ticket-card .tc-head { display: flex; align-items: center;",
+        "             justify-content: space-between; gap: 8px; }",
+        "    .ticket-card .tc-name { font-size: 15px; font-weight: 600; color: var(--ink);",
+        "             letter-spacing: -0.01em; }",
+        "    .ticket-card .tc-topic { font-size: 13px; color: var(--ink-2); line-height: 1.4; }",
+        "    .ticket-card .tc-date { font-size: 12px; color: var(--muted); margin-top: 4px;",
+        "             font-variant-numeric: tabular-nums; }",
         "    footer { position: relative; text-align: center; color: var(--muted);",
         "             font-size: 12px; padding: 24px 20px 28px; margin-top: 16px;",
         "             border-top: 1px solid var(--line); letter-spacing: .01em; }",
@@ -186,11 +198,11 @@ define(["require", "exports"], function (require, exports) {
         "             border-radius: 999px; vertical-align: middle; margin: 0 8px 2px;",
         "             background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%); }",
         "    @media (max-width: 600px) {",
-        "      header { padding: 44px 18px 56px; }",
+        "      header { padding: 56px 18px 96px; }",
         "      header h1 { font-size: 28px; }",
         "      header p { font-size: 15px; }",
         "      .card { padding: 22px; border-radius: 12px; }",
-        "      main { margin-top: -24px; }",
+        "      main { margin-top: 24px; }",
         "    }",
         "    /* Animations */",
         "    @keyframes card-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }",
@@ -304,40 +316,45 @@ define(["require", "exports"], function (require, exports) {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#39;");
     }
+    exports.escapeHtml = escapeHtml;
     /**
      * Renders a compact "Recent tickets" card showing the most recent few
      * submissions. Returns an empty string when there are none, so the card
      * never appears before the first ticket is created.
      */
-    function renderRecentTicketsCard(tickets, ticketsUrl) {
+    function renderRecentTicketsCard(tickets, ticketsUrl, agendaUrl) {
         if (!tickets || tickets.length === 0)
             return "";
-        const rows = tickets.map(t => {
+        const cards = tickets.map(t => {
             var _a, _b, _c;
             return [
-                "<tr>",
-                `  <td><code>${escapeHtml(t.ticketId)}</code></td>`,
-                `  <td>${escapeHtml((_a = t.name) !== null && _a !== void 0 ? _a : "—")}</td>`,
-                `  <td>${escapeHtml((_b = t.topic) !== null && _b !== void 0 ? _b : "—")}</td>`,
-                `  <td>${escapeHtml((_c = t.date) !== null && _c !== void 0 ? _c : "—")}</td>`,
-                "</tr>"
+                `      <div class="ticket-card">`,
+                `        <div class="tc-head">`,
+                `          <code>${escapeHtml(t.ticketId)}</code>`,
+                `          <span class="badge badge-open">Open</span>`,
+                "        </div>",
+                `        <div class="tc-name">${escapeHtml((_a = t.name) !== null && _a !== void 0 ? _a : "—")}</div>`,
+                `        <div class="tc-topic">${escapeHtml((_b = t.topic) !== null && _b !== void 0 ? _b : "—")}</div>`,
+                `        <div class="tc-date">${escapeHtml((_c = t.date) !== null && _c !== void 0 ? _c : "—")}</div>`,
+                "      </div>"
             ].join("\n");
         }).join("\n");
         return [
             '    <section class="card">',
             '      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;">',
             `        <h2>Latest tickets</h2>`,
-            `        <a class="link" href="${ticketsUrl}">View all &rarr;</a>`,
+            `        <span style="display:flex;gap:14px;flex-wrap:wrap;">`,
+            `          <a class="link" href="${agendaUrl}">Agenda &rarr;</a>`,
+            `          <a class="link" href="${ticketsUrl}">View all &rarr;</a>`,
+            `        </span>`,
             "      </div>",
-            "      <table>",
-            "        <thead>",
-            "          <tr><th>Ticket ID</th><th>Name</th><th>Topic</th><th>Submitted</th></tr>",
-            "        </thead>",
-            `        <tbody>${rows}</tbody>`,
-            "      </table>",
+            `      <div class="ticket-grid">`,
+            cards,
+            "      </div>",
             "    </section>"
         ].join("\n");
     }
+    exports.renderRecentTicketsCard = renderRecentTicketsCard;
     /**
      * Renders the full support page. `state` controls the optional banner
      * shown after a form submission.
@@ -346,7 +363,8 @@ define(["require", "exports"], function (require, exports) {
         var _a, _b, _c;
         const base = escapeHtml((_a = state.baseUrl) !== null && _a !== void 0 ? _a : "");
         const ticketsUrl = base + "&view=tickets";
-        const recentCard = renderRecentTicketsCard((_b = state.recentTickets) !== null && _b !== void 0 ? _b : [], ticketsUrl);
+        const agendaUrl = base + "&view=agenda";
+        const recentCard = renderRecentTicketsCard((_b = state.recentTickets) !== null && _b !== void 0 ? _b : [], ticketsUrl, agendaUrl);
         let toast = "";
         if (state.submitted) {
             toast = [
@@ -372,6 +390,7 @@ define(["require", "exports"], function (require, exports) {
                 '  <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">',
                 `    <a class="btn-again" href="${base}">Submit another request</a>`,
                 `    <a class="btn-again neutral" href="${ticketsUrl}">View all tickets</a>`,
+                `    <a class="btn-again neutral" href="${agendaUrl}">Agenda</a>`,
                 "  </div>",
                 "</div>"
             ].join("\n");
@@ -419,8 +438,9 @@ define(["require", "exports"], function (require, exports) {
             "      </form>",
             "    </section>",
             recentCard || [
-                '    <section class="card" style="text-align:center;padding:18px 24px;">',
+                '    <section class="card" style="text-align:center;padding:18px 24px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">',
                 `      <a class="link" href="${ticketsUrl}">View all submitted tickets &rarr;</a>`,
+                `      <a class="link" href="${agendaUrl}">View agenda &rarr;</a>`,
                 "    </section>"
             ].join("\n")
         ].join("\n");
@@ -475,7 +495,7 @@ define(["require", "exports"], function (require, exports) {
             "  <header>",
             THEME_TOGGLE_BUTTON,
             "    <h1>Support Center</h1>",
-            "    <p>We're here to help. Submit a request below and our team will get back to you.</p>",
+            "    <p>We're here to help. Submit a request below and our team will get back to you as soon as possible.</p>",
             "  </header>",
             "  <main>",
             "    " + banner,
@@ -492,6 +512,7 @@ define(["require", "exports"], function (require, exports) {
             "</html>"
         ].join("\n");
     }
+    exports.renderPage = renderPage;
     /**
      * Renders the all-tickets list page.
      */
@@ -556,4 +577,79 @@ define(["require", "exports"], function (require, exports) {
             "</html>"
         ].join("\n");
     }
+    exports.renderTicketsPage = renderTicketsPage;
+    // A simple, self-contained weekly agenda: the times the support team is
+    // available. No backend/record — visitors book by submitting a request that
+    // mentions their preferred slot.
+    const AGENDA_SCHEDULE = [
+        { day: "Monday", slots: ["9:00", "10:00", "11:00", "2:00", "3:00", "4:00"] },
+        { day: "Tuesday", slots: ["9:00", "10:00", "11:00", "2:00", "3:00", "4:00"] },
+        { day: "Wednesday", slots: ["9:00", "10:00", "11:00", "2:00", "3:00"] },
+        { day: "Thursday", slots: ["9:00", "10:00", "11:00", "2:00", "3:00", "4:00"] },
+        { day: "Friday", slots: ["9:00", "10:00", "11:00", "2:00"] }
+    ];
+    /**
+     * Renders the simple Agenda page — the support team's available appointment
+     * slots, with a CTA back to the request form to book one.
+     */
+    function renderAgendaPage(state = {}) {
+        var _a;
+        const base = escapeHtml((_a = state.baseUrl) !== null && _a !== void 0 ? _a : "");
+        const rows = AGENDA_SCHEDULE.map(d => {
+            const chips = d.slots
+                .map(s => `<span class="badge badge-open">${escapeHtml(s)}</span>`)
+                .join(" ");
+            return [
+                "<tr>",
+                `  <td>${escapeHtml(d.day)}</td>`,
+                `  <td><div style="display:flex;gap:6px;flex-wrap:wrap;">${chips}</div></td>`,
+                "</tr>"
+            ].join("\n");
+        }).join("\n");
+        const body = [
+            '    <section class="card">',
+            "      <h2>Available appointment slots</h2>",
+            '      <p style="color:var(--muted);margin:6px 0 2px;font-size:14px;line-height:1.5;">Times our support team is available (business hours). Pick one that works for you.</p>',
+            "      <table>",
+            "        <thead>",
+            "          <tr><th>Day</th><th>Available times</th></tr>",
+            "        </thead>",
+            `        <tbody>${rows}</tbody>`,
+            "      </table>",
+            "    </section>",
+            '    <section class="card" style="text-align:center;">',
+            "      <h2>Want one of these slots?</h2>",
+            "      <p style=\"color:var(--muted);margin:6px 0 14px;font-size:14px;line-height:1.5;\">Submit a support request and mention your preferred day and time — we'll confirm by email.</p>",
+            `      <a class="btn-again" href="${base}">Book via a request</a>`,
+            "    </section>",
+            `    <p style="margin-top:20px;text-align:center;"><a class="link" href="${base}">&larr; Back to Support Center</a></p>`
+        ].join("\n");
+        return [
+            "<!DOCTYPE html>",
+            '<html lang="en">',
+            "<head>",
+            '  <meta charset="utf-8">',
+            '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+            "  <title>Agenda — Support Center</title>",
+            THEME_INIT_SCRIPT,
+            "  <style>",
+            SHARED_STYLES,
+            "  </style>",
+            "</head>",
+            "<body>",
+            "  <header>",
+            THEME_TOGGLE_BUTTON,
+            "    <h1>Agenda</h1>",
+            "    <p>Available appointment times to reach our support team.</p>",
+            "  </header>",
+            "  <main>",
+            body,
+            "  </main>",
+            '  <footer>Deployed by Midware<span class="brand-dot" aria-hidden="true"></span>using Cycle</footer>',
+            THEME_TOGGLE_SCRIPT,
+            "</body>",
+            "</html>"
+        ].join("\n");
+    }
+    exports.renderAgendaPage = renderAgendaPage;
 });

@@ -1,5 +1,5 @@
 <suitelet scriptid="customscript_sl_support">
-  <description>Public Support Page Suitelet (Available Without Login). drift+deploy-B 192312Z</description>
+  <description>Public Support Page Suitelet (Available Without Login). deploy-check 2026-06-15 cycleignore-fix</description>
   <isinactive>F</isinactive>
   <name>Support Page Suitelet</name>
   <notifyadmins>F</notifyadmins>

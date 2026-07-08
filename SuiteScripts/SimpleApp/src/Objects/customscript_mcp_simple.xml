@@ -13,10 +13,8 @@
       <allpartners>F</allpartners>
       <allroles>T</allroles>
       <audslctrole></audslctrole>
-      <eventtype></eventtype>
       <isdeployed>T</isdeployed>
       <loglevel>DEBUG</loglevel>
-      <runasrole></runasrole>
       <status>RELEASED</status>
       <title>SimpleApp MCP RESTlet</title>
     </scriptdeployment>

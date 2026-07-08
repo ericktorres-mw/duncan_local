@@ -31,7 +31,7 @@ define([
   // This constant is compared against the expectedAccountId sent from the backend
   const DEPLOYED_ACCOUNT_ID = "1233958_SB1";
 
-  // Injected at deploy time by deployCycleRestlet. "true" in local/dev environments,
+  // Injected at deploy time by prepareCycleRestletWorkspace. "true" in local/dev environments,
   // "false" in staging and production. Controls whether DEBUG and AUDIT log entries
   // are collected into the response payload sent back to the backend.
   // In production, only ERROR entries are collected — this prevents debug noise
@@ -89,11 +89,9 @@ define([
   // Stop processing files 60 s before the 300 s RESTlet wall to leave room
   // for the response to be serialised and returned.
   const MAX_EXECUTION_MS = 240000;
-  // Keep the JSON response body under ~20 MB of base64 content to limit RAM
-  // usage on the backend per batch. The Node.js V8 hard limit is 536 MB, but
-  // smaller batches mean the backend holds less base64 in memory at once while
-  // writing files to disk for the baseline commit.
-  const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
+  // Fallback batch size cap used when the caller does not pass maxResponseMb.
+  // Must match the default in baseline-processor.ts (BASELINE_BATCH_MAX_MB=50).
+  const MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
   const DEFAULT_ROOT_FOLDER_NAME = "SuiteScripts";
 
   /**
@@ -422,7 +420,7 @@ define([
     );
 
     try {
-      const allFiles = { fetched: [], errors: [], resumePath: null };
+      const allFiles = { fetched: [], errors: [], resumePath: null, batchExhausted: false };
 
       // When resuming, the lastPath's first segment tells us which root to
       // resume within. Roots before it are already complete; roots after it
@@ -430,6 +428,7 @@ define([
       const resumeRootName = lastPath ? lastPath.split("/")[0] : null;
       let skipUntilResume = !!resumeRootName;
       let accumulatedBytes = 0;
+      let batchLastFetchedPath = null; // last successfully pushed path across all roots
       // Capture the true governance baseline once, before any traversal starts.
       const usageAtStart = runtime.getCurrentScript().getRemainingUsage();
       // Aggregate traversal stats across all roots for the single summary log.
@@ -454,15 +453,26 @@ define([
           false,
           startTime,
           accumulatedBytes,
-          batchMaxBytes
+          batchMaxBytes,
+          null,
+          batchLastFetchedPath
         );
 
         allFiles.fetched.push(...files.fetched);
         allFiles.errors.push(...files.errors);
         accumulatedBytes = files.accumulatedBytes;
+        if (files.lastFetchedPath !== null) batchLastFetchedPath = files.lastFetchedPath;
 
         if (files.resumePath) {
           allFiles.resumePath = files.resumePath;
+        }
+
+        // Stop traversing further roots if the batch was exhausted (size, usage,
+        // or time). batchExhausted covers resumePath: null (exhaustion before any
+        // file was pushed) which would otherwise fall through to the next root.
+        if (files.batchExhausted) {
+          allFiles.batchExhausted = true;
+          break;
         }
 
         if (files.stats) {
@@ -474,6 +484,13 @@ define([
       }
 
       const resumePath = allFiles.resumePath;
+      // isComplete is true only when traversal genuinely finished — no resume
+      // cursor AND no exhaustion that halted before any file was pushed.
+      // Without the batchExhausted guard, a usage/time limit firing before the
+      // first file of a fresh call would leave resumePath: null while files
+      // still remain, causing the caller to treat the batch as complete and
+      // silently skip everything past the exhaustion point.
+      const isComplete = !resumePath && !allFiles.batchExhausted;
       const executionTime = Date.now() - startTime;
       const usageAtEnd = runtime.getCurrentScript().getRemainingUsage();
 
@@ -483,7 +500,7 @@ define([
         `foldersVisited=${batchStats.foldersVisited} filesSkipped=${batchStats.filesSkipped} filesInvalid=${batchStats.filesInvalid} ` +
         `usageBurned=${usageAtStart - usageAtEnd} usageRemaining=${usageAtEnd} ` +
         `sizeMB=${Math.round(accumulatedBytes / 1024 / 1024)} elapsed=${executionTime}ms ` +
-        `complete=${!resumePath}`
+        `complete=${isComplete}`
       );
 
       return {
@@ -492,7 +509,7 @@ define([
         errors: allFiles.errors,
         syncDate: startTimeUTC,
         lastPath: resumePath,
-        isComplete: !resumePath,
+        isComplete,
         executionTime,
       };
     } catch (err) {
@@ -1478,7 +1495,8 @@ define([
     startTime = null,
     accumulatedBytes = 0,
     batchMaxBytes = MAX_RESPONSE_BYTES,
-    stats = null  // { foldersVisited, filesSkipped, filesInvalid, filesConsidered }
+    stats = null,  // { foldersVisited, filesSkipped, filesInvalid, filesConsidered }
+    inheritedLastFetchedPath = null  // last pushed path from a parent/sibling frame
   ) {
     // Initialise stats object on the first (root) call only.
     if (!stats) {
@@ -1488,6 +1506,11 @@ define([
 
     let fetched = [];
     let errors = [];
+    // Tracks the last successfully pushed file in this frame. Falls back to
+    // inheritedLastFetchedPath (last push from a parent/sibling scope) so that
+    // when the very first file in this folder triggers sizeExhausted, the
+    // resumePath still points to the last globally-pushed file.
+    let lastFetchedPath = inheritedLastFetchedPath;
 
     // 1️⃣ Get files directly in this folder using folder join (paged)
     // searchFilters arrive as plain "name"-keyed filters from the backend.
@@ -1589,21 +1612,43 @@ define([
 
             let content = getFileContent64(fileId);
 
-            accumulatedBytes += content ? content.length : 0;
-            fetched.push({ name: fileName, path, content });
+            // Estimate the JSON serialization cost of this file entry in the response body:
+            // {"name":"<fileName>","path":"<path>","content":"<base64>"} plus array commas/brackets.
+            // 34 = fixed structural chars; fileName and path are the variable costs.
+            const fileBytes = content ? content.length : 0;
+            const jsonOverhead = 34 + fileName.length + path.length;
+            const fileContribution = fileBytes + jsonOverhead;
 
             const remainingUsage = runtime.getCurrentScript().getRemainingUsage();
             const usageExhausted = remainingUsage < BATCH_USAGE_THRESHOLD;
             const timeExhausted = startTime !== null && (Date.now() - startTime) > MAX_EXECUTION_MS;
-            const sizeExhausted = accumulatedBytes > batchMaxBytes;
+            // Pre-push size check: stop BEFORE adding this file if adding it would exceed the
+            // limit. The accumulatedBytes > 0 guard ensures at least one file is always returned
+            // (avoids an infinite loop when a single file is larger than batchMaxBytes).
+            const sizeExhausted = accumulatedBytes > 0 && (accumulatedBytes + fileContribution) > batchMaxBytes;
 
             if (usageExhausted || timeExhausted || sizeExhausted) {
               logger.debug(
                 "Batch limit reached",
                 `Remaining Usage: ${remainingUsage}, Elapsed: ${startTime !== null ? (Date.now() - startTime) + "ms" : "unknown"}, Response size: ${Math.round(accumulatedBytes / 1024 / 1024)}MB, Last Path: ${path}, processed files: ${fetched.length}`
               );
-              return { fetched, errors, resumePath: path, resumeFound: true, accumulatedBytes, stats };
+              // None of the three exhaustion paths push the current file, so resumePath
+              // must point to the last successfully pushed file (resume logic is
+              // exclusive: skips up to and including resumePath, starts from the next).
+              // sizeExhausted is guarded by accumulatedBytes > 0, so lastFetchedPath is
+              // always non-null when it fires. usageExhausted/timeExhausted have no such
+              // guard — lastFetchedPath may be null if exhaustion fires before any file
+              // in this batch was pushed (e.g. large filtered-out folder tree).
+              // batchExhausted: true signals callers to halt traversal regardless of
+              // whether resumePath is null, so the loop does not fall through to the
+              // next sibling/root and consume more governance/time budget past the threshold.
+              const resumePath = lastFetchedPath;
+              return { fetched, errors, resumePath, resumeFound: true, batchExhausted: true, accumulatedBytes, lastFetchedPath, stats };
             }
+
+            accumulatedBytes += fileContribution;
+            fetched.push({ name: fileName, path, content });
+            lastFetchedPath = path;
           } catch (err) {
             const fileName = path ? path.split("/").pop() : null;
             errors.push(
@@ -1645,21 +1690,28 @@ define([
           startTime,
           accumulatedBytes,
           batchMaxBytes,
-          stats
+          stats,
+          lastFetchedPath
         );
 
         fetched.push(...subFiles.fetched);
         errors.push(...subFiles.errors);
         accumulatedBytes = subFiles.accumulatedBytes;
+        if (subFiles.lastFetchedPath !== null) lastFetchedPath = subFiles.lastFetchedPath;
 
-        // If sub recursion returned a resumePath, stop and bubble up
-        if (subFiles.resumePath) {
+        // Stop and bubble up if the sub-frame hit any batch limit (size, usage,
+        // or time). batchExhausted covers the case where resumePath is null
+        // (exhaustion before any file was pushed) — checking only resumePath
+        // would fall through and keep burning governance/time budget.
+        if (subFiles.batchExhausted || subFiles.resumePath) {
           return {
             fetched,
             errors,
             resumePath: subFiles.resumePath,
             resumeFound: true,
+            batchExhausted: subFiles.batchExhausted || false,
             accumulatedBytes,
+            lastFetchedPath,
             stats,
           };
         }
@@ -1669,7 +1721,7 @@ define([
       }
     }
 
-    return { fetched, errors, resumePath: null, resumeFound, accumulatedBytes, stats };
+    return { fetched, errors, resumePath: null, resumeFound, batchExhausted: false, accumulatedBytes, lastFetchedPath, stats };
   }
 
   function getFileContent64(fileId) {

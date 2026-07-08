@@ -30,6 +30,10 @@ export interface TicketsState {
   baseUrl?: string;
 }
 
+export interface AgendaState {
+  baseUrl?: string;
+}
+
 const MSG_MAX = 2000;
 
 const SHARED_STYLES = [
@@ -72,7 +76,7 @@ const SHARED_STYLES = [
   "           background: var(--bg); color: var(--ink);",
   "           display: flex; flex-direction: column; }",
   "    header { position: relative; overflow: hidden; color: #fff;",
-  "             padding: 72px 20px 96px; text-align: center;",
+  "             padding: 72px 20px 128px; text-align: center;",
   "             background: linear-gradient(135deg, var(--header-grad-from) 0%, var(--header-grad-via) 55%, var(--header-grad-to) 100%); }",
   "    header::before { content: ''; position: absolute; inset: 0;",
   "             background-image: var(--header-pattern);",
@@ -218,7 +222,7 @@ const SHARED_STYLES = [
   "             border-radius: 999px; vertical-align: middle; margin: 0 8px 2px;",
   "             background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%); }",
   "    @media (max-width: 600px) {",
-  "      header { padding: 56px 18px 72px; }",
+  "      header { padding: 56px 18px 96px; }",
   "      header h1 { font-size: 28px; }",
   "      header p { font-size: 15px; }",
   "      .card { padding: 22px; border-radius: 12px; }",
@@ -348,7 +352,7 @@ export function escapeHtml(value: unknown): string {
  * submissions. Returns an empty string when there are none, so the card
  * never appears before the first ticket is created.
  */
-export function renderRecentTicketsCard(tickets: Ticket[], ticketsUrl: string): string {
+export function renderRecentTicketsCard(tickets: Ticket[], ticketsUrl: string, agendaUrl: string): string {
   if (!tickets || tickets.length === 0) return "";
 
   const cards = tickets.map(t => [
@@ -367,7 +371,10 @@ export function renderRecentTicketsCard(tickets: Ticket[], ticketsUrl: string): 
     '    <section class="card">',
     '      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;">',
     `        <h2>Latest tickets</h2>`,
-    `        <a class="link" href="${ticketsUrl}">View all &rarr;</a>`,
+    `        <span style="display:flex;gap:14px;flex-wrap:wrap;">`,
+    `          <a class="link" href="${agendaUrl}">Agenda &rarr;</a>`,
+    `          <a class="link" href="${ticketsUrl}">View all &rarr;</a>`,
+    `        </span>`,
     "      </div>",
     `      <div class="ticket-grid">`,
     cards,
@@ -383,7 +390,8 @@ export function renderRecentTicketsCard(tickets: Ticket[], ticketsUrl: string): 
 export function renderPage(state: PageState = {}): string {
   const base       = escapeHtml(state.baseUrl ?? "");
   const ticketsUrl = base + "&view=tickets";
-  const recentCard = renderRecentTicketsCard(state.recentTickets ?? [], ticketsUrl);
+  const agendaUrl  = base + "&view=agenda";
+  const recentCard = renderRecentTicketsCard(state.recentTickets ?? [], ticketsUrl, agendaUrl);
 
   let toast = "";
   if (state.submitted) {
@@ -411,6 +419,7 @@ export function renderPage(state: PageState = {}): string {
       '  <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">',
       `    <a class="btn-again" href="${base}">Submit another request</a>`,
       `    <a class="btn-again neutral" href="${ticketsUrl}">View all tickets</a>`,
+      `    <a class="btn-again neutral" href="${agendaUrl}">Agenda</a>`,
       "  </div>",
       "</div>"
     ].join("\n");
@@ -459,8 +468,9 @@ export function renderPage(state: PageState = {}): string {
     "      </form>",
     "    </section>",
     recentCard || [
-      '    <section class="card" style="text-align:center;padding:18px 24px;">',
+      '    <section class="card" style="text-align:center;padding:18px 24px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">',
       `      <a class="link" href="${ticketsUrl}">View all submitted tickets &rarr;</a>`,
+      `      <a class="link" href="${agendaUrl}">View agenda &rarr;</a>`,
       "    </section>"
     ].join("\n")
   ].join("\n");
@@ -518,7 +528,7 @@ export function renderPage(state: PageState = {}): string {
     "  <header>",
     THEME_TOGGLE_BUTTON,
     "    <h1>Support Center</h1>",
-    "    <p>We're here to help. Submit a request below and our team will get back to you.</p>",
+    "    <p>We're here to help. Submit a request below and our team will get back to you as soon as possible.</p>",
     "  </header>",
     "  <main>",
     "    " + banner,
@@ -588,6 +598,83 @@ export function renderTicketsPage(state: TicketsState = {}): string {
     THEME_TOGGLE_BUTTON,
     "    <h1>All Tickets</h1>",
     "    <p>All support requests submitted through this page.</p>",
+    "  </header>",
+    "  <main>",
+    body,
+    "  </main>",
+    '  <footer>Deployed by Midware<span class="brand-dot" aria-hidden="true"></span>using Cycle</footer>',
+    THEME_TOGGLE_SCRIPT,
+    "</body>",
+    "</html>"
+  ].join("\n");
+}
+
+// A simple, self-contained weekly agenda: the times the support team is
+// available. No backend/record — visitors book by submitting a request that
+// mentions their preferred slot.
+const AGENDA_SCHEDULE: Array<{ day: string; slots: string[] }> = [
+  { day: "Monday",    slots: ["9:00", "10:00", "11:00", "2:00", "3:00", "4:00"] },
+  { day: "Tuesday",   slots: ["9:00", "10:00", "11:00", "2:00", "3:00", "4:00"] },
+  { day: "Wednesday", slots: ["9:00", "10:00", "11:00", "2:00", "3:00"] },
+  { day: "Thursday",  slots: ["9:00", "10:00", "11:00", "2:00", "3:00", "4:00"] },
+  { day: "Friday",    slots: ["9:00", "10:00", "11:00", "2:00"] }
+];
+
+/**
+ * Renders the simple Agenda page — the support team's available appointment
+ * slots, with a CTA back to the request form to book one.
+ */
+export function renderAgendaPage(state: AgendaState = {}): string {
+  const base = escapeHtml(state.baseUrl ?? "");
+
+  const rows = AGENDA_SCHEDULE.map(d => {
+    const chips = d.slots
+      .map(s => `<span class="badge badge-open">${escapeHtml(s)}</span>`)
+      .join(" ");
+    return [
+      "<tr>",
+      `  <td>${escapeHtml(d.day)}</td>`,
+      `  <td><div style="display:flex;gap:6px;flex-wrap:wrap;">${chips}</div></td>`,
+      "</tr>"
+    ].join("\n");
+  }).join("\n");
+
+  const body = [
+    '    <section class="card">',
+    "      <h2>Available appointment slots</h2>",
+    '      <p style="color:var(--muted);margin:6px 0 2px;font-size:14px;line-height:1.5;">Times our support team is available (business hours). Pick one that works for you.</p>',
+    "      <table>",
+    "        <thead>",
+    "          <tr><th>Day</th><th>Available times</th></tr>",
+    "        </thead>",
+    `        <tbody>${rows}</tbody>`,
+    "      </table>",
+    "    </section>",
+    '    <section class="card" style="text-align:center;">',
+    "      <h2>Want one of these slots?</h2>",
+    "      <p style=\"color:var(--muted);margin:6px 0 14px;font-size:14px;line-height:1.5;\">Submit a support request and mention your preferred day and time — we'll confirm by email.</p>",
+    `      <a class="btn-again" href="${base}">Book via a request</a>`,
+    "    </section>",
+    `    <p style="margin-top:20px;text-align:center;"><a class="link" href="${base}">&larr; Back to Support Center</a></p>`
+  ].join("\n");
+
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="en">',
+    "<head>",
+    '  <meta charset="utf-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+    "  <title>Agenda — Support Center</title>",
+    THEME_INIT_SCRIPT,
+    "  <style>",
+    SHARED_STYLES,
+    "  </style>",
+    "</head>",
+    "<body>",
+    "  <header>",
+    THEME_TOGGLE_BUTTON,
+    "    <h1>Agenda</h1>",
+    "    <p>Available appointment times to reach our support team.</p>",
     "  </header>",
     "  <main>",
     body,

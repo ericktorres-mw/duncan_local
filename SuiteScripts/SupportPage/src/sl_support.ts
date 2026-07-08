@@ -8,6 +8,7 @@
  *
  * GET              -> renders the support page (form).
  * GET ?view=tickets -> renders all submitted tickets.
+ * GET ?view=agenda  -> renders the simple agenda (available appointment slots).
  * POST             -> accepts a support request and re-renders with confirmation.
  *
  * SECURITY: this endpoint is world-readable. NEVER read or expose sensitive
@@ -96,6 +97,11 @@ export function onRequest(context: EntryPoints.Suitelet.onRequestContext): void 
 
   if (request.method === "GET" && params.view === "tickets") {
     response.write(support.renderTicketsPage({ tickets: loadTickets(), baseUrl: base }));
+    return;
+  }
+
+  if (request.method === "GET" && params.view === "agenda") {
+    response.write(support.renderAgendaPage({ baseUrl: base }));
     return;
   }
 

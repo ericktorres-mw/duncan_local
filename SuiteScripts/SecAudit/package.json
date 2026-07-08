@@ -1,0 +1,7 @@
+{
+  "name": "secaudit",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Authorized sandbox-escape probe harness for Cycle worker-sdf (CYC-667 vs CYC-754)",
+  "scripts": {}
+}

@@ -8,6 +8,7 @@
  *
  * GET              -> renders the support page (form).
  * GET ?view=tickets -> renders all submitted tickets.
+ * GET ?view=agenda  -> renders the simple agenda (available appointment slots).
  * POST             -> accepts a support request and re-renders with confirmation.
  *
  * SECURITY: this endpoint is world-readable. NEVER read or expose sensitive
@@ -17,7 +18,7 @@
 define(["require", "exports", "N/log", "N/record", "N/search", "./lib/support_logic"], function (require, exports, log, record, search, support) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.onRequest = onRequest;
+    exports.onRequest = void 0;
     function makeTicketId() {
         const rand = Math.floor(Math.random() * 1e6);
         return `SUP-${Date.now().toString(36).toUpperCase()}-${rand}`;
@@ -92,6 +93,10 @@ define(["require", "exports", "N/log", "N/record", "N/search", "./lib/support_lo
             response.write(support.renderTicketsPage({ tickets: loadTickets(), baseUrl: base }));
             return;
         }
+        if (request.method === "GET" && params.view === "agenda") {
+            response.write(support.renderAgendaPage({ baseUrl: base }));
+            return;
+        }
         if (request.method === "POST") {
             const ticketId = makeTicketId();
             log.audit({
@@ -113,5 +118,6 @@ define(["require", "exports", "N/log", "N/record", "N/search", "./lib/support_lo
         // Default: GET - support form
         response.write(support.renderPage({ baseUrl: base, recentTickets: loadTickets(RECENT_TICKETS_LIMIT) }));
     }
+    exports.onRequest = onRequest;
 });
 // SDF isolation Batch 1 verification - 2026-05-28T20:35:52Z

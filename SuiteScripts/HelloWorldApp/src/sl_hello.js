@@ -3,7 +3,7 @@
  * @NScriptType Suitelet
  */
 // M1.1 env-lock test bump 2026-05-16
-define(["N/ui/serverWidget", "N/log"], function (serverWidget, log) {
+define(["N/ui/serverWidget", "N/log", "./lib/survey_logic"], function (serverWidget, log, surveyLogic) {
   function onRequest(context) {
     if (context.request.method === "GET") {
       var form = serverWidget.createForm({
@@ -117,12 +117,7 @@ define(["N/ui/serverWidget", "N/log"], function (serverWidget, log) {
         type: serverWidget.FieldType.INLINEHTML,
         label: " "
       });
-      msg.defaultValue =
-        "<h2>Thank you for your feedback, " +
-        (response.fullName || "valued customer") +
-        "!</h2>" +
-        "<p>Your responses have been recorded.</p>" +
-        "<p><strong>Rating:</strong> " + (response.rating || "-") + " / 5</p>";
+      msg.defaultValue = surveyLogic.thankYouMessage(response.fullName, response.rating);
 
       context.response.writePage(confirm);
     }
@@ -148,3 +143,4 @@ define(["N/ui/serverWidget", "N/log"], function (serverWidget, log) {
 // M1.2 push 5 1778953747
 // M1.X mixed sync-only push 2 1778972121
 // M1.X mixed sync-only push 4 1778972126
+// CYC-668 orchestrator deploy-pod end-to-end test
